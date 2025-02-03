@@ -40,9 +40,9 @@ def replace(yamlFile: str) -> typing.List:
             if "spec" not in yamlDoc and "tasks" not in yamlDoc["spec"]:
                 continue
 
-            if "pipelineSpec" in yamlDoc["spec"]:
+            if "tasks" in yamlDoc["spec"]:
                 # TODO: handle multiple
-                steps = yamlDoc["spec"]["pipelineSpec"]["tasks"][0]["taskSpec"]["steps"]
+                steps = yamlDoc["spec"]["tasks"][0]["taskSpec"]["steps"]
             else:
                 print(f"ERROR: no steps found in task: {yamlDoc['metadata']['name']}")
                 print(f"available keys: {list(yamlDoc['spec'].keys())}")

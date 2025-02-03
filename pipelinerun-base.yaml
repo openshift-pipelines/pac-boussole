@@ -1,0 +1,34 @@
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: prow-commands
+  annotations:
+    pipelinesascode.tekton.dev/on-comment: "^/(help|(assign|unassign|label|unlabel)[ ].*)"
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  pipelineSpec:
+    tasks:
+      - name: manage-pr
+        displayName: Manage PR Assignments & Labels
+        taskSpec:
+          steps:
+            - name: manage-pr
+              image: registry.access.redhat.com/ubi9/ubi
+              env:
+                - name: GITHUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: "{{ git_auth_secret }}"
+                      key: "git-provider-token"
+                - name: GH_REPO_OWNER
+                  value: "{{ repo_owner }}"
+                - name: GH_REPO_NAME
+                  value: "{{ repo_name }}"
+                - name: GH_PR_NUM
+                  value: "{{ pull_request_number }}"
+                - name: PAC_TRIGGER_COMMENT
+                  value: "{{ trigger_comment }}"
+
+              script: |
+                #include prow.py

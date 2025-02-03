@@ -1,0 +1,146 @@
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: prow-commands
+  annotations:
+    pipelinesascode.tekton.dev/on-comment: ^/(help|(assign|unassign|label|unlabel)[ ].*)
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  pipelineSpec:
+    tasks:
+      - name: manage-pr
+        displayName: Manage PR Assignments & Labels
+        taskSpec:
+          steps:
+            - name: manage-pr
+              image: registry.access.redhat.com/ubi9/ubi
+              env:
+                - name: GITHUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: "{{ git_auth_secret }}"
+                      key: git-provider-token
+              script: |
+                #!/usr/bin/env python3
+                import os
+                import re
+                import sys
+
+                import requests
+
+                GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+                # Base URL for issue (or PR) operations
+                API_BASE = "https://api.github.com/repos/{{ repo_owner }}/{{ repo_name }}/issues/{{ pull_request_number }}"
+                # URL for submitting a PR review (for approvals)
+                PR_REVIEW_API = "https://api.github.com/repos/{{ repo_owner }}/{{ repo_name }}/pulls/{{ pull_request_number }}/reviews"
+                HEADERS = {
+                    "Authorization": f"Bearer {GITHUB_TOKEN}",
+                    "Accept": "application/vnd.github.v3+json",
+                }
+
+                COMMENT = """{{ trigger_comment }}"""
+                match = re.match(r"^/(assign|unassign|label|unlabel|lgtm|help)\s*(.*)", COMMENT)
+
+                if not match:
+                    print(f"⚠️ No valid command found in comment: {COMMENT}", file=sys.stderr)
+                    sys.exit(1)
+
+                command, values = match.groups()
+                values = values.split()
+
+
+                def make_request(method, url, data=None):
+                    if method == "POST":
+                        return requests.post(url, json=data, headers=HEADERS)
+                    elif method == "DELETE":
+                        return requests.delete(url, json=data, headers=HEADERS)
+                    return None
+
+
+                if command == "assign":
+                    API_URL = f"{API_BASE}/assignees"
+                    data = {"assignees": values}
+                    response = make_request("POST", API_URL, data)
+                elif command == "unassign":
+                    API_URL = f"{API_BASE}/assignees"
+                    data = {"assignees": values}
+                    response = make_request("DELETE", API_URL, data)
+                elif command == "label":
+                    API_URL = f"{API_BASE}/labels"
+                    data = {"labels": values}
+                    response = make_request("POST", API_URL, data)
+                elif command == "unlabel":
+                    # Remove each label separately
+                    for label in values:
+                        response = make_request("DELETE", f"{API_BASE}/labels/{label}")
+                elif command == "lgtm":
+                    # Fetch all comments on the PR
+                    COMMENTS_API = "https://api.github.com/repos/{ repo_owner }/{ repo_name }/issues/{ pull_request_number }/comments"
+                    comments_resp = requests.get(COMMENTS_API, headers=HEADERS)
+                    if comments_resp.status_code != 200:
+                        print(
+                            f"❌ Failed to fetch comments: {comments_resp.status_code} - {comments_resp.text}",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+                    comments = comments_resp.json()
+                    lgtm_users = set()
+                    # Gather unique users who commented /lgtm (case-insensitive)
+                    for comment_item in comments:
+                        body = comment_item.get("body", "")
+                        if re.search(r"^/lgtm\b", body, re.IGNORECASE):
+                            lgtm_users.add(comment_item["user"]["login"])
+
+                    valid_votes = 0
+                    org = "{{ repo_owner }}"  # assuming repo_owner represents the organization
+                    for user in lgtm_users:
+                        membership_url = f"https://api.github.com/orgs/{org}/members/{user}"
+                        membership_resp = requests.get(membership_url, headers=HEADERS)
+                        if membership_resp.status_code == 204:
+                            valid_votes += 1
+                        else:
+                            print(
+                                f"User {user} is not an org member (status: {membership_resp.status_code})",
+                                file=sys.stderr,
+                            )
+                    if valid_votes >= 2:
+                        API_URL = PR_REVIEW_API
+                        data = {"event": "APPROVE", "body": "LGTM :+1:"}
+                        response = make_request("POST", API_URL, data)
+                        if response and response.status_code in [200, 201, 204]:
+                            print("✅ PR approved with LGTM votes.")
+                        else:
+                            print(
+                                f"❌ Failed to approve PR: {response.status_code if response else 'N/A'} - {response.text if response else 'N/A'}",
+                                file=sys.stderr,
+                            )
+                            sys.exit(1)
+                        sys.exit(0)
+                    else:
+                        print(f"Not enough valid /lgtm votes (found {valid_votes}, need 2).")
+                        sys.exit(0)
+                elif command == "help":
+                    API_URL = f"{API_BASE}/comments"
+                    help_text = """### 🤖 Available Commands
+                | Command                   | Description                                                          |
+                |---------------------------|----------------------------------------------------------------------|
+                | `/assign user1 user2`     | Assigns users to the PR                                              |
+                | `/unassign user1 user2`   | Removes assigned users                                               |
+                | `/label bug feature`      | Adds labels to the PR                                                |
+                | `/unlabel bug feature`    | Removes labels from the PR                                           |
+                | `/lgtm`                   | Approves the PR if at least 2 org members have commented `/lgtm`       |
+                | `/help`                   | Shows this help message                                              |
+                """
+                    response = make_request("POST", API_URL, {"body": help_text})
+                    print("✅ Posted help message")
+                    sys.exit(0)
+
+                if response and response.status_code in [200, 201, 204]:
+                    print(f"✅ Successfully processed {command}: {', '.join(values) if values else ''}")
+                else:
+                    print(
+                        f"❌ Failed to process {command}: {response.status_code if response else 'N/A'} - {response.text if response else 'N/A'}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)

@@ -1,3 +1,4 @@
+# Those variables are for testing
 CMD =
 GH_REPO_OWNER = chmouel
 GH_REPO_NAME = scratchmyback
@@ -6,7 +7,7 @@ PASS_TOKEN = github/chmouel-token
 PRURL = https://github.com/$(GH_REPO_OWNER)/$(GH_REPO_NAME)/pull/$(GH_PR_NUM)
 
 generate:
-	python3 ./tekton-task-embed-script.py base.yaml | prettier --parser=yaml > prow.yaml
+	uv run ./tekton-task-embed-script.py base.yaml | prettier --parser=yaml > prow.yaml
 
 sync: generate
 	cp -v prow.yaml $$GOPATH/src/github.com/openshift-pipelines/pac/main/.tekton/prow.yaml

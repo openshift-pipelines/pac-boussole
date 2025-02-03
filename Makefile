@@ -1,7 +1,10 @@
 COMMAND =
 
 generate:
-	python3 ./tekton-task-embed-script.py pipelinerun-base.yaml | tee prow.yaml
+	python3 ./tekton-task-embed-script.py pipelinerun-base.yaml > prow.yaml
+
+sync: generate
+	cp -v prow.yaml $$GOPATH/src/github.com/openshift-pipelines/pac/main/.tekton/prow.yaml
 
 test:
 	@ [[ -n "$(COMMAND)" ]] || (echo "Please specify a command to run as argument: like make test COMMAND=/lgtm" && exit 1)

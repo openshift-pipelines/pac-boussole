@@ -18,6 +18,8 @@ HEADERS = {
     "Accept": "application/vnd.github.v3+json",
 }
 
+LGTM_THRESHOLD = 2
+
 match = re.match(
     r"^/(assign|unassign|label|unlabel|lgtm|help)\s*(.*)", PAC_TRIGGER_COMMENT
 )
@@ -98,19 +100,11 @@ def lgtm():
                 f"User {user} does not have write access: {membership_resp.json()}",
                 file=sys.stderr,
             )
-    if valid_votes >= 2:
+    if valid_votes >= LGTM_THRESHOLD:
         API_URL = API_PULLS + "/reviews"
         data = {"event": "APPROVE", "body": "LGTM :+1:"}
-        response = make_request("POST", API_URL, data)
-        if response and response.status_code in [200, 201, 204]:
-            print("✅ PR approved with LGTM votes.")
-        else:
-            print(
-                f"❌ Failed to approve PR {response.status_code} - {response.text}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        sys.exit(0)
+        print("✅ PR approved with LGTM votes.")
+        return make_request("POST", API_URL, data)
     else:
         print(f"Not enough valid /lgtm votes (found {valid_votes}, need 2).")
         sys.exit(0)

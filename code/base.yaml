@@ -8,6 +8,14 @@ metadata:
       ^/(help|lgtm|(assign|unassign|label|unlabel)[ ].*)$
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
+  params:
+    - name: repo_owner
+    - name: repo_name
+    - name: pull_request_number
+    - name: git_auth_secret
+    - name: git_auth_secret_key
+      default: git-provider-token
+    - name: trigger_comment
   tasks:
     - name: manage-pr
       displayName: Manage PR Assignments & Labels
@@ -19,16 +27,16 @@ spec:
               - name: GITHUB_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: "{{ git_auth_secret }}"
-                    key: "git-provider-token"
+                    name: "$(params.git_auth_secret)"
+                    key: "$(params.git_auth_secret_key)"
               - name: GH_REPO_OWNER
-                value: "{{ repo_owner }}"
+                value: "$(params.repo_owner)"
               - name: GH_REPO_NAME
-                value: "{{ repo_name }}"
+                value: "$(params.repo_name)"
               - name: GH_PR_NUM
-                value: "{{ pull_request_number }}"
+                value: "$(params.pull_request_number)"
               - name: PAC_TRIGGER_COMMENT
-                value: "{{ trigger_comment }}"
-
+                value: |
+                  $(params.trigger_comment)
             script: |
               #include prow.py

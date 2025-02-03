@@ -4,7 +4,8 @@ kind: PipelineRun
 metadata:
   name: prow-commands
   annotations:
-    pipelinesascode.tekton.dev/on-comment: "^/(help|lgtm|(assign|unassign|label|unlabel)[ ].*)$"
+    pipelinesascode.tekton.dev/on-comment: |
+      ^/(help|lgtm|(assign|unassign|label|unlabel)[ ].*)$
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   pipelineSpec:

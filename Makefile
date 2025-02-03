@@ -1,7 +1,9 @@
 COMMAND =
 
 generate:
-	python3 ./tekton-task-embed-script.py pipelinerun-base.yaml > prow.yaml
+	python3 ./tekton-task-embed-script.py pipelinerun-base.yaml | prettier --parser=yaml > prow.yaml
+
+
 
 sync: generate
 	cp -v prow.yaml $$GOPATH/src/github.com/openshift-pipelines/pac/main/.tekton/prow.yaml

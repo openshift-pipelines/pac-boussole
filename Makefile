@@ -7,7 +7,8 @@ PASS_TOKEN = github/chmouel-token
 PRURL = https://github.com/$(GH_REPO_OWNER)/$(GH_REPO_NAME)/pull/$(GH_PR_NUM)
 
 generate:
-	uv run ./tekton-task-embed-script.py base.yaml | prettier --parser=yaml > prow.yaml
+	@echo "Generating prow.yaml 🚿" && \
+		uv run ./tekton-task-embed-script.py base.yaml | prettier --parser=yaml > prow.yaml
 
 sync: generate
 	cp -v prow.yaml $$GOPATH/src/github.com/openshift-pipelines/pac/main/.tekton/prow.yaml

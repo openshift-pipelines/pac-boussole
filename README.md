@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pipelines As Code Prow let you trigger Tekton Pipelines based on GitHub comments replicating the prow commands functionality.
+Pipelines As Code Prow let you trigger Tekton Pipelines based on GitHub comments replicating some of the prow commands functionality.
 
 ## Supported Commands
 

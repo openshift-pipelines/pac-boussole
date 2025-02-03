@@ -49,12 +49,22 @@ spec:
     name: prow-commands
 ```
 
+### Without Pipelines-as-Code
+
+You can use this Pipeline as well without Pipelines-as-Code from triggers for
+example. You just need to pass the necessary parameters to the
+`TriggerTemplate`.
+
+(feel free to contribute to this README with an example for other users).
+
 ## Contributing
 
 Feel free to submit pull requests or open issues to help improve the
 project.
 
-You will need to isntall [uv](https://github.com/astral-sh/uv)
+### Development
+
+You will need to install [uv](https://github.com/astral-sh/uv)
 
 This project use generated PipelineRun as described
 [here](https://blog.chmouel.com/2020/07/28/tekton-yaml-templates-and-script-feature/),

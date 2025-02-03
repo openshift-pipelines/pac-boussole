@@ -6,7 +6,7 @@ PASS_TOKEN = github/chmouel-token
 PRURL = https://github.com/$(GH_REPO_OWNER)/$(GH_REPO_NAME)/pull/$(GH_PR_NUM)
 
 generate:
-	python3 ./tekton-task-embed-script.py pipelinerun-base.yaml | prettier --parser=yaml > prow.yaml
+	python3 ./tekton-task-embed-script.py base.yaml | prettier --parser=yaml > prow.yaml
 
 sync: generate
 	cp -v prow.yaml $$GOPATH/src/github.com/openshift-pipelines/pac/main/.tekton/prow.yaml
@@ -19,3 +19,11 @@ test:
 
 open_pr:
 	@if type -p xdg-open; then xdg-open $(PRURL); elif type -p open ;then open $(PRURL);fi
+
+check:
+	@make generate && \
+		if ! git status prow.yaml|grep -q 'nothing to commit'; then \
+			echo 'you need to use make generate';  \
+			git diff prow.yaml;  \
+			exit 1 ; \
+		fi

@@ -168,9 +168,9 @@ spec:
                 elif command == "unlabel":
                     response = unlabel(values)
                 elif command == "lgtm":
-                    lgtm()
+                    response = lgtm()
                 elif command == "help":
-                    ressponse = help_command()
+                    response = help_command()
 
                 if response and response.status_code in [200, 201, 204]:
                     print(f"✅ Successfully processed {command}: {', '.join(values) if values else ''}")

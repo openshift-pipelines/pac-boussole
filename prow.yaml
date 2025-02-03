@@ -54,19 +54,6 @@ spec:
 
                 LGTM_THRESHOLD = 2
 
-                match = re.match(
-                    r"^/(assign|unassign|label|unlabel|lgtm|help)\s*(.*)", PAC_TRIGGER_COMMENT
-                )
-
-                if not match:
-                    print(
-                        f"⚠️ No valid command found in comment: {PAC_TRIGGER_COMMENT}", file=sys.stderr
-                    )
-                    sys.exit(1)
-
-                command, values = match.groups()
-                values = values.split()
-
 
                 def make_request(method, url, data=None):
                     if method == "POST":
@@ -159,24 +146,50 @@ spec:
                     return make_request("POST", API_URL, {"body": help_text})
 
 
-                if command == "assign":
-                    response = assign_unassign("assign", values)
-                elif command == "unassign":
-                    response = assign_unassign("unassign", values)
-                elif command == "label":
-                    response = label(values)
-                elif command == "unlabel":
-                    response = unlabel(values)
-                elif command == "lgtm":
-                    response = lgtm()
-                elif command == "help":
-                    response = help_command()
-
-                if response and response.status_code in [200, 201, 204]:
-                    print(f"✅ Successfully processed {command}: {', '.join(values) if values else ''}")
-                else:
+                def check_response(command, values, response):
+                    if response and response.status_code in [200, 201, 204]:
+                        print(
+                            f"✅ Successfully processed {command}: {', '.join(values) if values else ''}"
+                        )
+                        return True
                     print(
-                        f"❌ Failed to process {command}: {response.status_code if response else 'N/A'} - {response.text if response else 'N/A'}",
+                        f"❌ Failed to process {command}: {response.status_code} - {response.text}",
                         file=sys.stderr,
                     )
-                    sys.exit(1)
+                    return False
+
+
+                def main():
+                    match = re.match(
+                        r"^/(assign|unassign|label|unlabel|lgtm|help)\s*(.*)", PAC_TRIGGER_COMMENT
+                    )
+
+                    if not match:
+                        print(
+                            f"⚠️ No valid command found in comment: {PAC_TRIGGER_COMMENT}",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+
+                    command, values = match.groups()
+                    values = values.split()
+
+                    if command == "assign":
+                        response = assign_unassign("assign", values)
+                    elif command == "unassign":
+                        response = assign_unassign("unassign", values)
+                    elif command == "label":
+                        response = label(values)
+                    elif command == "unlabel":
+                        response = unlabel(values)
+                    elif command == "lgtm":
+                        response = lgtm()
+                    elif command == "help":
+                        response = help_command()
+
+                    if not check_response(command, values, response):
+                        sys.exit(1)
+
+
+                if __name__ == "__main__":
+                    main()

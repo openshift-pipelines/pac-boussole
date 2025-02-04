@@ -17,6 +17,8 @@ spec:
     - name: git_auth_secret_key
       default: git-provider-token
     - name: trigger_comment
+    - name: lgtm_treshold
+      default: "1"
   tasks:
     - name: manage-pr
       displayName: Manage PR Assignments & Labels
@@ -41,5 +43,7 @@ spec:
               - name: PAC_TRIGGER_COMMENT
                 value: |
                   $(params.trigger_comment)
+              - name: PAC_LGTM_TRESHOLD
+                value: "$(params.lgtm_treshold)"
             script: |
               #include prow.py

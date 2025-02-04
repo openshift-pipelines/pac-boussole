@@ -47,6 +47,13 @@ spec:
       value: "{{ body.issue.user.login }}"
     - name: git_auth_secret
       value: "{{ git_auth_secret }}"
+    # The key in git_auth_secret that contains the token (default: git-provider-token)
+    # - name: git_auth_secret_key
+    #   value: git-provider-token
+    #
+    # The /lgtm treshold needed of approvers for a PR to be approved (default: 1)
+    # - name: lgtm_threshold
+    #   value: "1"
   pipelineRef:
     name: prow-commands
 ```

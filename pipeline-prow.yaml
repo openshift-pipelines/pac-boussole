@@ -18,6 +18,8 @@ spec:
   - name: git_auth_secret_key
     default: git-provider-token
   - name: trigger_comment
+  - name: lgtm_treshold
+    default: '1'
   tasks:
   - name: manage-pr
     displayName: Manage PR Assignments & Labels
@@ -42,6 +44,8 @@ spec:
         - name: PAC_TRIGGER_COMMENT
           value: |
             $(params.trigger_comment)
+        - name: PAC_LGTM_TRESHOLD
+          value: $(params.lgtm_treshold)
         script: |
           #!/usr/bin/env python3
           # Copyright 2025 Red Hat, Inc.
@@ -52,6 +56,7 @@ spec:
 
           import requests
 
+          LGTM_THRESHOLD = int(os.getenv("PAC_LGTM_TRESHOLD", 1))
           GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
           GH_PR_NUM = os.getenv("GH_PR_NUM")
           GH_PR_SENDER = os.getenv("GH_PR_SENDER")
@@ -66,9 +71,7 @@ spec:
               "Accept": "application/vnd.github.v3+json",
           }
 
-          LGTM_THRESHOLD = 2
-
-          HELP_TEXT = """
+          HELP_TEXT = f"""
           ### 🤖 Available Commands
           | Command                   | Description                                                          |
           |---------------------------|----------------------------------------------------------------------|
@@ -76,7 +79,7 @@ spec:
           | `/unassign user1 user2`   | Removes assigned users                                               |
           | `/label bug feature`      | Adds labels to the PR                                                |
           | `/unlabel bug feature`    | Removes labels from the PR                                           |
-          | `/lgtm`                   | Approves the PR if at least 2 org members have commented `/lgtm`     |
+          | `/lgtm`                   | Approves the PR if at least {LGTM_THRESHOLD} org members have commented `/lgtm`     |
           | `/help`                   | Shows this help message                                              |
           """
 

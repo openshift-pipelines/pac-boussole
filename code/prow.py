@@ -7,6 +7,7 @@ import sys
 
 import requests
 
+LGTM_THRESHOLD = int(os.getenv("PAC_LGTM_TRESHOLD", 1))
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GH_PR_NUM = os.getenv("GH_PR_NUM")
 GH_PR_SENDER = os.getenv("GH_PR_SENDER")
@@ -21,9 +22,7 @@ HEADERS = {
     "Accept": "application/vnd.github.v3+json",
 }
 
-LGTM_THRESHOLD = 2
-
-HELP_TEXT = """
+HELP_TEXT = f"""
 ### 🤖 Available Commands
 | Command                   | Description                                                          |
 |---------------------------|----------------------------------------------------------------------|
@@ -31,7 +30,7 @@ HELP_TEXT = """
 | `/unassign user1 user2`   | Removes assigned users                                               |
 | `/label bug feature`      | Adds labels to the PR                                                |
 | `/unlabel bug feature`    | Removes labels from the PR                                           |
-| `/lgtm`                   | Approves the PR if at least 2 org members have commented `/lgtm`     |
+| `/lgtm`                   | Approves the PR if at least {LGTM_THRESHOLD} org members have commented `/lgtm`     |
 | `/help`                   | Shows this help message                                              |
 """
 

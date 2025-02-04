@@ -158,7 +158,7 @@ def lgtm():
         API_URL = API_PULLS + "/reviews"
         data = {
             "event": LGTM_REVIEW_EVENT,
-            "body": f"Approved by {valid_votes} LGTM votes. Users {lgtm_users.keys()}",
+            "body": f"Approved by {valid_votes} LGTM votes. Users {','.join(lgtm_users.keys())}",
         }
         print("✅ PR approved with LGTM votes.")
         make_request("POST", API_URL, data)

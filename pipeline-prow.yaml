@@ -13,6 +13,7 @@ spec:
   - name: repo_owner
   - name: repo_name
   - name: pull_request_number
+  - name: pull_request_sender
   - name: git_auth_secret
   - name: git_auth_secret_key
     default: git-provider-token
@@ -32,6 +33,8 @@ spec:
               key: $(params.git_auth_secret_key)
         - name: GH_REPO_OWNER
           value: $(params.repo_owner)
+        - name: GH_PR_SENDER
+          value: $(params.pull_request_sender)
         - name: GH_REPO_NAME
           value: $(params.repo_name)
         - name: GH_PR_NUM
@@ -40,7 +43,7 @@ spec:
           value: |
             $(params.trigger_comment)
         script: |
-          #!/usr/bin/env python3
+          #!/usr/bin/env python
           # Copyright 2025 Red Hat, Inc.
           # Author: Chmouel Boudjnah <chmouel@redhat.com>
           import os
@@ -51,6 +54,7 @@ spec:
 
           GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
           GH_PR_NUM = os.getenv("GH_PR_NUM")
+          GH_PR_SENDER = os.getenv("GH_PR_SENDER")
           GH_REPO_OWNER = os.getenv("GH_REPO_OWNER")
           GH_REPO_NAME = os.getenv("GH_REPO_NAME")
           PAC_TRIGGER_COMMENT = os.getenv("PAC_TRIGGER_COMMENT", "")
@@ -167,7 +171,18 @@ spec:
               for comment_item in comments:
                   body = comment_item.get("body", "")
                   if re.search(r"^/lgtm\b", body, re.IGNORECASE):
-                      lgtm_users[comment_item["user"]["login"]] = None
+                      user_login = comment_item["user"]["login"]
+                      if user_login == GH_PR_SENDER:
+                          msg = (
+                              f"User {user_login} is the PR sender and cannot /lgtm their own PR. This needs to be deleted or this won't pass",
+                          )
+                          post_comment(msg)
+                          print(
+                              msg,
+                              file=sys.stderr,
+                          )
+                          sys.exit(1)
+                      lgtm_users[user_login] = None
 
               valid_votes = 0
               for user in list(lgtm_users.keys()):

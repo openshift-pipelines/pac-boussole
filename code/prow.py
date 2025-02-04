@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # Copyright 2025 Red Hat, Inc.
 # Author: Chmouel Boudjnah <chmouel@redhat.com>
 import os
@@ -9,6 +9,7 @@ import requests
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GH_PR_NUM = os.getenv("GH_PR_NUM")
+GH_PR_SENDER = os.getenv("GH_PR_SENDER")
 GH_REPO_OWNER = os.getenv("GH_REPO_OWNER")
 GH_REPO_NAME = os.getenv("GH_REPO_NAME")
 PAC_TRIGGER_COMMENT = os.getenv("PAC_TRIGGER_COMMENT", "")
@@ -125,7 +126,18 @@ def lgtm():
     for comment_item in comments:
         body = comment_item.get("body", "")
         if re.search(r"^/lgtm\b", body, re.IGNORECASE):
-            lgtm_users[comment_item["user"]["login"]] = None
+            user_login = comment_item["user"]["login"]
+            if user_login == GH_PR_SENDER:
+                msg = (
+                    f"User {user_login} is the PR sender and cannot /lgtm their own PR. This needs to be deleted or this won't pass",
+                )
+                post_comment(msg)
+                print(
+                    msg,
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            lgtm_users[user_login] = None
 
     valid_votes = 0
     for user in list(lgtm_users.keys()):

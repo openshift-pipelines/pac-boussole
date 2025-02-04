@@ -43,6 +43,8 @@ spec:
       value: "{{ repo_name }}"
     - name: pull_request_number
       value: "{{ pull_request_number }}"
+    - name: pull_request_sender
+      value: "{{ body.issue.user.login }}"
     - name: git_auth_secret
       value: "{{ git_auth_secret }}"
   pipelineRef:

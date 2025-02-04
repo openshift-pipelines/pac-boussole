@@ -12,6 +12,7 @@ spec:
     - name: repo_owner
     - name: repo_name
     - name: pull_request_number
+    - name: pull_request_sender
     - name: git_auth_secret
     - name: git_auth_secret_key
       default: git-provider-token
@@ -31,6 +32,8 @@ spec:
                     key: "$(params.git_auth_secret_key)"
               - name: GH_REPO_OWNER
                 value: "$(params.repo_owner)"
+              - name: GH_PR_SENDER
+                value: "$(params.pull_request_sender)"
               - name: GH_REPO_NAME
                 value: "$(params.repo_name)"
               - name: GH_PR_NUM

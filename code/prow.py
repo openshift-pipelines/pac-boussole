@@ -9,6 +9,7 @@ import requests
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GH_PR_NUM = os.getenv("GH_PR_NUM")
+GH_PR_SENDER = os.getenv("GH_PR_SENDER")
 GH_REPO_OWNER = os.getenv("GH_REPO_OWNER")
 GH_REPO_NAME = os.getenv("GH_REPO_NAME")
 PAC_TRIGGER_COMMENT = os.getenv("PAC_TRIGGER_COMMENT", "")
@@ -21,6 +22,41 @@ HEADERS = {
 }
 
 LGTM_THRESHOLD = 2
+
+HELP_TEXT = """
+### 🤖 Available Commands
+| Command                   | Description                                                          |
+|---------------------------|----------------------------------------------------------------------|
+| `/assign user1 user2`     | Assigns users for review to the PR                                   |
+| `/unassign user1 user2`   | Removes assigned users                                               |
+| `/label bug feature`      | Adds labels to the PR                                                |
+| `/unlabel bug feature`    | Removes labels from the PR                                           |
+| `/lgtm`                   | Approves the PR if at least 2 org members have commented `/lgtm`     |
+| `/help`                   | Shows this help message                                              |
+"""
+
+
+def post_comment(message, error=False):
+    """Posts a comment to the pull request with the given message.
+
+    Args:
+        message (str): The message to post
+        error (bool): If True, formats the message as an error
+
+    Returns:
+        requests.Response: The response from the GitHub API
+    """
+    API_URL = f"{API_ISSUE}/comments"
+
+    if error:
+        formatted_message = f"""### ❌ Error
+```
+{message}
+```"""
+    else:
+        formatted_message = message
+
+    return make_request("POST", API_URL, {"body": formatted_message})
 
 
 def make_request(method, url, data=None):
@@ -36,82 +72,115 @@ def assign_unassign(command, values):
     API_URL = f"{API_PULLS}/requested_reviewers"
     values = [value.lstrip("@") for value in values]
     data = {"reviewers": values}
-    return make_request(method, API_URL, data)
+    response = make_request(method, API_URL, data)
+    if response and response.status_code in [200, 201, 204]:
+        post_comment(
+            f"✅ {command.capitalize()}ed <b>{', '.join(values)}</b> for reviews."
+        )
+    return response
 
 
 def label(values):
     API_URL = f"{API_ISSUE}/labels"
     data = {"labels": values}
+    post_comment(f"✅ Added labels: <b>{', '.join(values)}</b>.")
     return make_request("POST", API_URL, data)
 
 
 def unlabel(values):
     for label in values:
         response = make_request("DELETE", f"{API_ISSUE}/labels/{label}")
+    post_comment(f"✅ Removed labels: <b>{', '.join(values)}</b>.")
     return response
+
+
+def post_lgtm_breakdown(valid_votes, lgtm_users):
+    """Posts a breakdown of LGTM votes as a comment.
+
+    Args:
+        valid_votes (int): Number of valid LGTM votes
+        lgtm_users (dict): Dictionary of users and their permissions who voted LGTM
+    """
+    message = "### LGTM Vote Breakdown\n\n"
+    message += f"Current valid votes: {valid_votes}/{LGTM_THRESHOLD}\n\n"
+    message += "| User | Permission | Valid Vote |\n"
+    message += "|------|------------|------------|\n"
+
+    for user, permission in lgtm_users.items():
+        is_valid = permission in ["admin", "write"]
+        valid_mark = "✅" if is_valid else "❌"
+        message += f"| @{user} | {permission} | {valid_mark} |\n"
+
+    return post_comment(message)
 
 
 def lgtm():
     comments_resp = requests.get(API_ISSUE + "/comments", headers=HEADERS)
     if comments_resp.status_code != 200:
-        print(
-            f"❌ Failed to fetch comments: {comments_resp.status_code} - {comments_resp.text}",
-            file=sys.stderr,
-        )
+        error_message = f"Failed to fetch comments: {comments_resp.status_code} - {comments_resp.text}"
+        print(error_message, file=sys.stderr)
         sys.exit(1)
+
     comments = comments_resp.json()
-    lgtm_users = set()
+    lgtm_users = {}
     for comment_item in comments:
         body = comment_item.get("body", "")
         if re.search(r"^/lgtm\b", body, re.IGNORECASE):
-            lgtm_users.add(comment_item["user"]["login"])
+            user_login = comment_item["user"]["login"]
+            if user_login == GH_PR_SENDER:
+                msg = f"User {user_login} is the PR sender and cannot /lgtm their own PR. This needs to be deleted or this won't pass"
+                post_comment(msg, error=True)
+                print(msg, file=sys.stderr)
+                sys.exit(1)
+            lgtm_users[user_login] = None
 
     valid_votes = 0
-    for user in lgtm_users:
+    for user in list(lgtm_users.keys()):
         membership_url = f"{API_BASE}/collaborators/{user}/permission"
         membership_resp = requests.get(membership_url, headers=HEADERS)
+
         if membership_resp.status_code != 200:
             print(
                 f"User {user} does not have admin access (status: {membership_resp.status_code})",
                 file=sys.stderr,
             )
-            continue
-        jeez = membership_resp.json()
-        permission = jeez.get("permission")
-        if not permission:
-            print("No permission found in response", file=sys.stderr)
+            lgtm_users[user] = "none"
             continue
 
-        if permission == "admin" or permission == "write":
+        response_data = membership_resp.json()
+        permission = response_data.get("permission")
+        if not permission:
+            print("No permission found in response", file=sys.stderr)
+            lgtm_users[user] = "none"
+            continue
+
+        lgtm_users[user] = permission
+        if permission in ["admin", "write"]:
             valid_votes += 1
         else:
             print(
-                f"User {user} does not have write access: {membership_resp.json()}",
+                f"User {user} does not have write access: {response_data}",
                 file=sys.stderr,
             )
+
+    # Post the LGTM breakdown
+    post_lgtm_breakdown(valid_votes, lgtm_users)
+
     if valid_votes >= LGTM_THRESHOLD:
         API_URL = API_PULLS + "/reviews"
         data = {"event": "APPROVE", "body": "LGTM :+1:"}
         print("✅ PR approved with LGTM votes.")
         return make_request("POST", API_URL, data)
     else:
-        print(f"Not enough valid /lgtm votes (found {valid_votes}, need 2).")
+        message = (
+            f"Not enough valid /lgtm votes (found {valid_votes}, need {LGTM_THRESHOLD})"
+        )
+        print(message)
         sys.exit(0)
 
 
 def help_command():
-    API_URL = f"{API_ISSUE}/comments"
-    help_text = """### 🤖 Available Commands
-| Command                   | Description                                                          |
-|---------------------------|----------------------------------------------------------------------|
-| `/assign user1 user2`     | Assigns users for review to the PR                                              |
-| `/unassign user1 user2`   | Removes assigned users                                               |
-| `/label bug feature`      | Adds labels to the PR                                                |
-| `/unlabel bug feature`    | Removes labels from the PR                                           |
-| `/lgtm`                   | Approves the PR if at least 2 org members have commented `/lgtm`       |
-| `/help`                   | Shows this help message                                              |
-"""
-    return make_request("POST", API_URL, {"body": help_text})
+    return post_comment(HELP_TEXT.strip())
 
 
 def check_response(command, values, response):
@@ -142,10 +211,8 @@ def main():
     command, values = match.groups()
     values = values.split()
 
-    if command == "assign":
-        response = assign_unassign("assign", values)
-    elif command == "unassign":
-        response = assign_unassign("unassign", values)
+    if command == "assign" or command == "unassign":
+        response = assign_unassign(command, values)
     elif command == "label":
         response = label(values)
     elif command == "unlabel":

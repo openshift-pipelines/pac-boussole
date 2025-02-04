@@ -6,7 +6,7 @@ metadata:
   name: prow-commands
   annotations:
     pipelinesascode.tekton.dev/on-comment: |
-      ^/(help|lgtm|(assign|unassign|label|unlabel)[ ].*)$
+      ^/(help|merge|lgtm|(assign|unassign|label|unlabel)[ ].*)$
     pipelinesascode.tekton.dev/max-keep-runs: '5'
 spec:
   params:
@@ -80,6 +80,7 @@ spec:
           | `/label bug feature`      | Adds labels to the PR                                                |
           | `/unlabel bug feature`    | Removes labels from the PR                                           |
           | `/lgtm`                   | Approves the PR if at least {LGTM_THRESHOLD} org members have commented `/lgtm`     |
+          | `/merge`                  | Merges the PR if it has enough `/lgtm` approvals                    |
           | `/help`                   | Shows this help message                                              |
           """
 
@@ -218,7 +219,7 @@ spec:
                   API_URL = API_PULLS + "/reviews"
                   data = {"event": "APPROVE", "body": "LGTM :+1:"}
                   print("✅ PR approved with LGTM votes.")
-                  return make_request("POST", API_URL, data)
+                  make_request("POST", API_URL, data)
               else:
                   message = (
                       f"Not enough valid /lgtm votes (found {valid_votes}, need {LGTM_THRESHOLD})"
@@ -226,19 +227,55 @@ spec:
                   print(message)
                   sys.exit(0)
 
+              return valid_votes  # Return the number of valid votes
+
+
+          def merge_pr():
+              """Merges the pull request if the number of valid LGTM votes meets the threshold."""
+              valid_votes = lgtm()  # Get the number of valid LGTM votes
+              if valid_votes >= LGTM_THRESHOLD:
+                  API_URL = f"{API_PULLS}/merge"
+                  data = {
+                      "merge_method": "merge",  # You can change this to "squash" or "rebase" if needed
+                      "commit_title": f"Merged PR #{GH_PR_NUM}",
+                      "commit_message": f"PR #{GH_PR_NUM} merged by {GH_PR_SENDER} with {valid_votes} LGTM votes.",
+                  }
+                  response = make_request("PUT", API_URL, data)
+                  if response and response.status_code == 200:
+                      post_comment("✅ PR successfully merged.")
+                      return True
+                  else:
+                      post_comment(
+                          f"❌ Failed to merge PR: {response.status_code} - {response.text}",
+                          error=True,
+                      )
+                      return False
+              else:
+                  post_comment(
+                      f"❌ Not enough valid /lgtm votes to merge (found {valid_votes}, need {LGTM_THRESHOLD})",
+                      error=True,
+                  )
+                  return False
+
 
           def help_command():
               return post_comment(HELP_TEXT.strip())
 
 
           def check_response(command, values, response):
-              if response and response.status_code in [200, 201, 204]:
+              rtext = ""
+              if isinstance(response, int):
+                  rstatus_code = response
+              else:
+                  rstatus_code = response.status_code
+                  rtext = response.text
+              if response and rstatus_code in [200, 201, 204]:
                   print(
                       f"✅ Successfully processed {command}: {', '.join(values) if values else ''}"
                   )
                   return True
               print(
-                  f"❌ Failed to process {command}: {response.status_code} - {response.text}",
+                  f"❌ Failed to process {command}: {rstatus_code} - {rtext}",
                   file=sys.stderr,
               )
               return False
@@ -265,10 +302,14 @@ spec:
                   response = label(values)
               elif command == "unlabel":
                   response = unlabel(values)
-              elif command == "lgtm":
-                  response = lgtm()
               elif command == "help":
                   response = help_command()
+              elif command == "lgtm":
+                  lgtm()
+                  return
+              elif command == "merge":
+                  merge_pr()
+                  return
 
               if not check_response(command, values, response):
                   sys.exit(1)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright 2025 Red Hat, Inc.
 # Author: Chmouel Boudjnah <chmouel@redhat.com>
 import os
 import re

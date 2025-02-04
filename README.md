@@ -50,6 +50,9 @@ spec:
       value: "{{ git_auth_secret }}"
     - name: comment_sender
       value: "{{ sender }}"
+    #
+    # Optional parameters (value is the default):
+    #
     # The key in git_auth_secret that contains the token (default: git-provider-token)
     # - name: git_auth_secret_key
     #   value: git-provider-token
@@ -57,6 +60,20 @@ spec:
     # The /lgtm treshold needed of approvers for a PR to be approved (default: 1)
     # - name: lgtm_threshold
     #   value: "1"
+    #
+    # The permissionms the user need to trigger a lgtm
+    # - name: lgtm_permissions
+    #   value: "admin,write"
+    #
+    # The review event  when lgtm is triggered, can be APPROVE,
+    # REQUEST_CHANGES, or COMMENT if setting to empty string it will be set as
+    # PENDING
+    # - name: lgtm_review_event
+    #   value: "APPROVE"
+    #
+    # The merge method to use. Can be one of: merge, squash, rebase
+    # - name: merge_method
+    #   value: "rebase"
   pipelineRef:
     name: prow-commands
 ```
@@ -76,7 +93,8 @@ project.
 
 ### Development
 
-You will need to install [uv](https://github.com/astral-sh/uv)
+You will need to install [uv](https://github.com/astral-sh/uv) and use the
+makefile targets.
 
 This project use generated PipelineRun as described
 [here](https://blog.chmouel.com/2020/07/28/tekton-yaml-templates-and-script-feature/),

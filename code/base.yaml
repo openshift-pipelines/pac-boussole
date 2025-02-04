@@ -13,6 +13,7 @@ spec:
     - name: repo_name
     - name: pull_request_number
     - name: pull_request_sender
+    - name: comment_sender
     - name: git_auth_secret
     - name: git_auth_secret_key
       default: git-provider-token
@@ -40,6 +41,8 @@ spec:
                 value: "$(params.repo_name)"
               - name: GH_PR_NUM
                 value: "$(params.pull_request_number)"
+              - name: GH_COMMENT_SENDER
+                value: "$(params.comment_sender)"
               - name: PAC_TRIGGER_COMMENT
                 value: |
                   $(params.trigger_comment)

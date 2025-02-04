@@ -22,5 +22,7 @@ spec:
       value: "{{ body.issue.user.login }}"
     - name: git_auth_secret
       value: "{{ git_auth_secret }}"
+    - name: comment_sender
+      value: "{{ sender }}"
   pipelineRef:
     name: prow-commands

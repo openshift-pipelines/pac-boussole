@@ -11,8 +11,10 @@ LGTM_THRESHOLD = int(os.getenv("PAC_LGTM_TRESHOLD", 1))
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GH_PR_NUM = os.getenv("GH_PR_NUM")
 GH_PR_SENDER = os.getenv("GH_PR_SENDER")
+GH_COMMENT_SENDER = os.getenv("GH_COMMENT_SENDER")
 GH_REPO_OWNER = os.getenv("GH_REPO_OWNER")
 GH_REPO_NAME = os.getenv("GH_REPO_NAME")
+GH_MERGE_METHOD = os.getenv("GH_MERGE_METHOD", "rebase")
 PAC_TRIGGER_COMMENT = os.getenv("PAC_TRIGGER_COMMENT", "")
 API_BASE = f"https://api.github.com/repos/{GH_REPO_OWNER}/{GH_REPO_NAME}"
 API_ISSUE = f"{API_BASE}/issues/{GH_PR_NUM}"
@@ -60,11 +62,7 @@ def post_comment(message, error=False):
 
 
 def make_request(method, url, data=None):
-    if method == "POST":
-        return requests.post(url, json=data, headers=HEADERS)
-    elif method == "DELETE":
-        return requests.delete(url, json=data, headers=HEADERS)
-    return None
+    return requests.request(method, url, json=data, headers=HEADERS)
 
 
 def assign_unassign(command, values):
@@ -136,24 +134,12 @@ def lgtm():
 
     valid_votes = 0
     for user in list(lgtm_users.keys()):
-        membership_url = f"{API_BASE}/collaborators/{user}/permission"
-        membership_resp = requests.get(membership_url, headers=HEADERS)
-
-        if membership_resp.status_code != 200:
-            print(
-                f"User {user} does not have admin access (status: {membership_resp.status_code})",
-                file=sys.stderr,
-            )
+        membership_resp, permission, is_admin = check_membership(user)
+        if not is_admin:
             lgtm_users[user] = "none"
             continue
 
         response_data = membership_resp.json()
-        permission = response_data.get("permission")
-        if not permission:
-            print("No permission found in response", file=sys.stderr)
-            lgtm_users[user] = "none"
-            continue
-
         lgtm_users[user] = permission
         if permission in ["admin", "write"]:
             valid_votes += 1
@@ -181,13 +167,47 @@ def lgtm():
     return valid_votes  # Return the number of valid votes
 
 
+def check_membership(user):
+    membership_url = f"{API_BASE}/collaborators/{user}/permission"
+    membership_resp = requests.get(membership_url, headers=HEADERS)
+
+    if membership_resp.status_code != 200:
+        print(
+            f"User {user} does not have admin access (status: {membership_resp.status_code})",
+            file=sys.stderr,
+        )
+        return membership_resp, [], False
+
+    response_data = membership_resp.json()
+    permission = response_data.get("permission")
+    if not permission:
+        print("No permission found in response", file=sys.stderr)
+        return membership_resp, [], False
+
+    return membership_resp, permission, True
+
+
 def merge_pr():
     """Merges the pull request if the number of valid LGTM votes meets the threshold."""
+    user = GH_COMMENT_SENDER
+    membership_resp, permission, is_admin = check_membership(user)
+    response_data = membership_resp.json()
+    if not is_admin:
+        msg = f"User {user} does not have write access: {response_data}"
+        post_comment(msg, error=True)
+        print(msg, file=sys.stderr)
+        sys.exit(1)
+    if permission not in ["admin", "write"]:
+        msg = f"User {user} does not have the permissions to merge: {','.join(permission)}"
+        post_comment(msg, error=True)
+        print(msg, file=sys.stderr)
+        sys.exit(1)
+
     valid_votes = lgtm()  # Get the number of valid LGTM votes
     if valid_votes >= LGTM_THRESHOLD:
         API_URL = f"{API_PULLS}/merge"
         data = {
-            "merge_method": "merge",  # You can change this to "squash" or "rebase" if needed
+            "merge_method": GH_MERGE_METHOD,  # You can change this to "squash" or "rebase" if needed
             "commit_title": f"Merged PR #{GH_PR_NUM}",
             "commit_message": f"PR #{GH_PR_NUM} merged by {GH_PR_SENDER} with {valid_votes} LGTM votes.",
         }
@@ -234,7 +254,7 @@ def check_response(command, values, response):
 
 def main():
     match = re.match(
-        r"^/(assign|unassign|label|unlabel|lgtm|help)\s*(.*)", PAC_TRIGGER_COMMENT
+        r"^/(merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)", PAC_TRIGGER_COMMENT
     )
 
     if not match:

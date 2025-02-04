@@ -48,6 +48,8 @@ spec:
       value: "{{ body.issue.user.login }}"
     - name: git_auth_secret
       value: "{{ git_auth_secret }}"
+    - name: comment_sender
+      value: "{{ sender }}"
     # The key in git_auth_secret that contains the token (default: git-provider-token)
     # - name: git_auth_secret_key
     #   value: git-provider-token

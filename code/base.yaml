@@ -18,8 +18,14 @@ spec:
     - name: git_auth_secret_key
       default: git-provider-token
     - name: trigger_comment
+    - name: lgtm_permissions
+      default: "admin,write"
     - name: lgtm_treshold
       default: "1"
+    - name: lgtm_review_event
+      default: "APPROVE"
+    - name: merge_method
+      default: "rebase"
   tasks:
     - name: manage-pr
       displayName: Manage PR Assignments & Labels
@@ -46,7 +52,13 @@ spec:
               - name: PAC_TRIGGER_COMMENT
                 value: |
                   $(params.trigger_comment)
+              - name: GH_MERGE_METHOD
+                value: $(params.merge_method)
               - name: PAC_LGTM_TRESHOLD
                 value: "$(params.lgtm_treshold)"
+              - name: PAC_LGTM_PERMISSIONS
+                value: "$(params.lgtm_permissions)"
+              - name: PAC_LGTM_REVIEW_EVENT
+                value: "$(params.lgtm_review_event)"
             script: |
               #include prow.py

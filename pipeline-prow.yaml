@@ -19,8 +19,14 @@ spec:
   - name: git_auth_secret_key
     default: git-provider-token
   - name: trigger_comment
+  - name: lgtm_permissions
+    default: admin,write
   - name: lgtm_treshold
     default: '1'
+  - name: lgtm_review_event
+    default: APPROVE
+  - name: merge_method
+    default: rebase
   tasks:
   - name: manage-pr
     displayName: Manage PR Assignments & Labels
@@ -47,8 +53,14 @@ spec:
         - name: PAC_TRIGGER_COMMENT
           value: |
             $(params.trigger_comment)
+        - name: GH_MERGE_METHOD
+          value: $(params.merge_method)
         - name: PAC_LGTM_TRESHOLD
           value: $(params.lgtm_treshold)
+        - name: PAC_LGTM_PERMISSIONS
+          value: $(params.lgtm_permissions)
+        - name: PAC_LGTM_REVIEW_EVENT
+          value: $(params.lgtm_review_event)
         script: |
           #!/usr/bin/env python3
           # Copyright 2025 Red Hat, Inc.
@@ -60,6 +72,8 @@ spec:
           import requests
 
           LGTM_THRESHOLD = int(os.getenv("PAC_LGTM_TRESHOLD", 1))
+          LGTM_PERMISSIONS = os.getenv("PAC_LGTM_PERMISSIONS", "admin,write")
+          LGTM_REVIEW_EVENT = os.getenv("PAC_LGTM_REVIEW_EVENT", "APPROVE")
           GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
           GH_PR_NUM = os.getenv("GH_PR_NUM")
           GH_PR_SENDER = os.getenv("GH_PR_SENDER")
@@ -157,7 +171,7 @@ spec:
               message += "|------|------------|------------|\n"
 
               for user, permission in lgtm_users.items():
-                  is_valid = permission in ["admin", "write"]
+                  is_valid = permission in LGTM_PERMISSIONS.split(",")
                   valid_mark = "✅" if is_valid else "❌"
                   message += f"| @{user} | {permission} | {valid_mark} |\n"
 
@@ -193,7 +207,7 @@ spec:
 
                   response_data = membership_resp.json()
                   lgtm_users[user] = permission
-                  if permission in ["admin", "write"]:
+                  if permission in LGTM_PERMISSIONS.split(","):
                       valid_votes += 1
                   else:
                       print(
@@ -206,7 +220,10 @@ spec:
 
               if valid_votes >= LGTM_THRESHOLD:
                   API_URL = API_PULLS + "/reviews"
-                  data = {"event": "APPROVE", "body": "LGTM :+1:"}
+                  data = {
+                      "event": LGTM_REVIEW_EVENT,
+                      "body": f"Approved by {valid_votes} LGTM votes. Users {lgtm_users.keys()}",
+                  }
                   print("✅ PR approved with LGTM votes.")
                   make_request("POST", API_URL, data)
               else:

@@ -8,6 +8,8 @@ import sys
 import requests
 
 LGTM_THRESHOLD = int(os.getenv("PAC_LGTM_TRESHOLD", 1))
+LGTM_PERMISSIONS = os.getenv("PAC_LGTM_PERMISSIONS", "admin,write")
+LGTM_REVIEW_EVENT = os.getenv("PAC_LGTM_REVIEW_EVENT", "APPROVE")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GH_PR_NUM = os.getenv("GH_PR_NUM")
 GH_PR_SENDER = os.getenv("GH_PR_SENDER")
@@ -105,7 +107,7 @@ def post_lgtm_breakdown(valid_votes, lgtm_users):
     message += "|------|------------|------------|\n"
 
     for user, permission in lgtm_users.items():
-        is_valid = permission in ["admin", "write"]
+        is_valid = permission in LGTM_PERMISSIONS.split(",")
         valid_mark = "✅" if is_valid else "❌"
         message += f"| @{user} | {permission} | {valid_mark} |\n"
 
@@ -141,7 +143,7 @@ def lgtm():
 
         response_data = membership_resp.json()
         lgtm_users[user] = permission
-        if permission in ["admin", "write"]:
+        if permission in LGTM_PERMISSIONS.split(","):
             valid_votes += 1
         else:
             print(
@@ -154,7 +156,10 @@ def lgtm():
 
     if valid_votes >= LGTM_THRESHOLD:
         API_URL = API_PULLS + "/reviews"
-        data = {"event": "APPROVE", "body": "LGTM :+1:"}
+        data = {
+            "event": LGTM_REVIEW_EVENT,
+            "body": f"Approved by {valid_votes} LGTM votes. Users {lgtm_users.keys()}",
+        }
         print("✅ PR approved with LGTM votes.")
         make_request("POST", API_URL, data)
     else:

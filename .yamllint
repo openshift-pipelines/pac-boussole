@@ -1,11 +1,3 @@
-ignore: |
-  /vendor
-  .git
-  test/testdata/failures/pipeline_bad_format.yaml
-  test/testdata/failures/bad-yaml.yaml
-  *badyaml.yaml
-  .github/workflows/*
-
 rules:
   braces: enable
   brackets: enable

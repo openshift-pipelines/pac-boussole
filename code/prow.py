@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright 2025 Red Hat, Inc.
 # Author: Chmouel Boudjnah <chmouel@redhat.com>
 import os
@@ -128,14 +128,9 @@ def lgtm():
         if re.search(r"^/lgtm\b", body, re.IGNORECASE):
             user_login = comment_item["user"]["login"]
             if user_login == GH_PR_SENDER:
-                msg = (
-                    f"User {user_login} is the PR sender and cannot /lgtm their own PR. This needs to be deleted or this won't pass",
-                )
-                post_comment(msg)
-                print(
-                    msg,
-                    file=sys.stderr,
-                )
+                msg = f"User {user_login} is the PR sender and cannot /lgtm their own PR. This needs to be deleted or this won't pass"
+                post_comment(msg, error=True)
+                print(msg, file=sys.stderr)
                 sys.exit(1)
             lgtm_users[user_login] = None
 

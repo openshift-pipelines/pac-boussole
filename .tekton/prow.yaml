@@ -1,0 +1,24 @@
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: prow-commands
+  annotations:
+    pipelinesascode.tekton.dev/pipeline: "./pipeline-prow.yaml"
+    pipelinesascode.tekton.dev/on-comment: "^/(help|lgtm|(assign|unassign|label|unlabel)[ ].*)$"
+    pipelinesascode.tekton.dev/max-keep-runs: "2"
+spec:
+  params:
+    - name: trigger_comment
+      value: |
+        {{ trigger_comment }}
+    - name: repo_owner
+      value: "{{ repo_owner }}"
+    - name: repo_name
+      value: "{{ repo_name }}"
+    - name: pull_request_number
+      value: "{{ pull_request_number }}"
+    - name: git_auth_secret
+      value: "{{ git_auth_secret }}"
+  pipelineRef:
+    name: prow-commands

@@ -103,6 +103,39 @@ HELP_TEXT = f"""
 | `/help`                     | Shows this help message                                                         |
 """
 
+APPROVED_TEMPLATE = """
+### ✅ Pull Request Approved
+
+**Approval Status:**
+* Required Approvals: {threshold}
+* Current Approvals: {valid_votes}
+
+### 👥 Approved By:
+| Reviewer | Permission | Status |
+|----------|------------|--------|
+{users_table}
+
+### 📝 Next Steps
+* All required checks must pass
+* Branch protection rules apply
+* Get a maintainer to use the `/merge` command to merge the PR
+
+Thank you for your contributions! 🎉
+"""
+
+LGTM_BREAKDOWN_TEMPLATE = """
+### LGTM Vote Breakdown
+
+* **Current valid votes:** {valid_votes}/{threshold}
+* **Voting required for approval:** {threshold}
+
+**Votes Summary:**
+| Reviewer | Permission | Valid Vote |
+|----------|------------|------------|
+{users_table}
+
+"""
+
 
 class GitHubAPI:
     """Wrapper for GitHub API calls to make them mockable."""
@@ -244,8 +277,20 @@ class PRHandler:
         self.post_lgtm_breakdown(valid_votes, lgtm_users)
 
         if valid_votes >= self.lgtm_threshold:
+            users_table = ""
+            for user, permission in lgtm_users.items():
+                is_valid = permission in self.lgtm_permissions
+                valid_mark = "✅" if is_valid else "❌"
+                users_table += (
+                    f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"
+                )
             endpoint = f"pulls/{self.pr_num}/reviews"
-            data = {"event": self.lgtm_review_event, "body": "LGTM :+1:"}
+            body = APPROVED_TEMPLATE.format(
+                threshold=self.lgtm_threshold,
+                valid_votes=valid_votes,
+                users_table=users_table,
+            )
+            data = {"event": self.lgtm_review_event, "body": body}
             print("✅ PR approved with LGTM votes.")
             self.api.post(endpoint, data)
         else:
@@ -260,17 +305,18 @@ class PRHandler:
     def post_lgtm_breakdown(
         self, valid_votes: int, lgtm_users: Dict[str, Optional[str]]
     ) -> None:
-        """Posts a breakdown of LGTM votes."""
-        message = "### LGTM Vote Breakdown\n\n"
-        message += f"Current valid votes: {valid_votes}/{self.lgtm_threshold}\n\n"
-        message += "| User | Permission | Valid Vote |\n"
-        message += "|------|------------|------------|\n"
-
+        """Posts a detailed breakdown of LGTM votes."""
+        users_table = ""
         for user, permission in lgtm_users.items():
             is_valid = permission in self.lgtm_permissions
             valid_mark = "✅" if is_valid else "❌"
-            message += f"| @{user} | {permission} | {valid_mark} |\n"
+            users_table += f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"
 
+        message = LGTM_BREAKDOWN_TEMPLATE.format(
+            valid_votes=valid_votes,
+            threshold=self.lgtm_threshold,
+            users_table=users_table,
+        )
         self.post_comment(message)
 
     def merge_pr(self) -> bool:
@@ -296,7 +342,45 @@ class PRHandler:
             }
             response = self.api.put(endpoint, data)
             if response and response.status_code == 200:
-                self.post_comment("✅ PR successfully merged.")
+                # Get the LGTM breakdown for the success message
+                endpoint = f"issues/{self.pr_num}/comments"
+                comments = self.api.get(endpoint).json()
+                lgtm_users: Dict[str, Optional[str]] = {}
+
+                for comment in comments:
+                    body = comment.get("body", "")
+                    if re.search(r"^/lgtm\b", body, re.IGNORECASE):
+                        user = comment["user"]["login"]
+                        if user != self.pr_sender:  # Skip self-approvals
+                            lgtm_users[user] = None
+
+                # Get permissions for all LGTM users
+                for user in lgtm_users.keys():
+                    permission, _ = self.check_membership(user)
+                    lgtm_users[user] = permission
+
+                # Create the users table for the message
+                users_table = ""
+                for user, permission in lgtm_users.items():
+                    is_valid = permission in self.lgtm_permissions
+                    valid_mark = "✅" if is_valid else "❌"
+                    users_table += (
+                        f"| @{user} | `{permission or 'unknown'}` | {valid_mark} |\n"
+                    )
+
+                success_message = f"""
+### ✅ PR Successfully Merged
+
+    * Merge method: `{self.merge_method}`
+    * Merged by: **@{self.comment_sender}**
+    * Total approvals: **{valid_votes}/{self.lgtm_threshold}**
+
+    **Approvals Summary:**
+    | Reviewer | Permission | Status |
+    |----------|------------|--------|
+    {users_table}
+    """
+                self.post_comment(success_message)
                 return True
             else:
                 self.post_comment(

@@ -15,11 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x" # Specify the Python version you need
-
       - name: Build Image
         id: build_image
         uses: redhat-actions/buildah-build@v2

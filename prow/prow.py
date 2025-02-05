@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # Copyright 2025 Red Hat, Inc.
 # Author: Chmouel Boudjnah <chmouel@redhat.com>
+#
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "requests",
+# ]
+# ///
 import os
 import re
 import sys
@@ -151,7 +158,9 @@ SUCCESS_MERGED = """
 
 
 class GitHubAPI:
-    """Wrapper for GitHub API calls to make them mockable."""
+    """
+    Wrapper for GitHub API calls to make them mockable.
+    """
 
     def __init__(self, base_url: str, headers: Dict[str, str]):
         self.base_url = base_url
@@ -175,7 +184,9 @@ class GitHubAPI:
 
 
 class PRHandler:
-    """Handles PR-related operations."""
+    """
+    Handles PR-related operations.
+    """
 
     def __init__(
         self,
@@ -198,12 +209,16 @@ class PRHandler:
         self.merge_method = merge_method
 
     def post_comment(self, message: str) -> requests.Response:
-        """Posts a comment to the pull request."""
+        """
+        Posts a comment to the pull request.
+        """
         endpoint = f"issues/{self.pr_num}/comments"
         return self.api.post(endpoint, {"body": message})
 
     def assign_unassign(self, command: str, users: List[str]) -> requests.Response:
-        """Assigns or unassigns users for review."""
+        """
+        Assigns or unassigns users for review.
+        """
         endpoint = f"pulls/{self.pr_num}/requested_reviewers"
         users = [user.lstrip("@") for user in users]
         data = {"reviewers": users}
@@ -216,21 +231,27 @@ class PRHandler:
         return response
 
     def label(self, labels: List[str]) -> requests.Response:
-        """Adds labels to the PR."""
+        """
+        Adds labels to the PR.
+        """
         endpoint = f"issues/{self.pr_num}/labels"
         data = {"labels": labels}
         self.post_comment(f"✅ Added labels: <b>{', '.join(labels)}</b>.")
         return self.api.post(endpoint, data)
 
     def unlabel(self, labels: List[str]) -> requests.Response:
-        """Removes labels from the PR."""
+        """
+        Removes labels from the PR.
+        """
         for label in labels:
             self.api.delete(f"issues/{self.pr_num}/labels/{label}")
         self.post_comment(f"✅ Removed labels: <b>{', '.join(labels)}</b>.")
         return requests.Response()
 
     def check_membership(self, user: str) -> Tuple[Optional[str], bool]:
-        """Checks if a user has the required permissions."""
+        """
+        Checks if a user has the required permissions.
+        """
         endpoint = f"collaborators/{user}/permission"
         response = self.api.get(endpoint)
         if response.status_code != 200:
@@ -253,7 +274,9 @@ class PRHandler:
         return permission, permission in self.lgtm_permissions
 
     def lgtm(self) -> int:
-        """Processes LGTM votes and approves the PR if the threshold is met."""
+        """
+        Processes LGTM votes and approves the PR if the threshold is met.
+        """
         endpoint = f"issues/{self.pr_num}/comments"
         response = self.api.get(endpoint)
         if response.status_code != 200:
@@ -318,7 +341,9 @@ class PRHandler:
     def post_lgtm_breakdown(
         self, valid_votes: int, lgtm_users: Dict[str, Optional[str]]
     ) -> None:
-        """Posts a detailed breakdown of LGTM votes."""
+        """
+        Posts a detailed breakdown of LGTM votes.
+        """
         users_table = ""
         for user, permission in lgtm_users.items():
             is_valid = permission in self.lgtm_permissions
@@ -333,7 +358,9 @@ class PRHandler:
         self.post_comment(message)
 
     def merge_pr(self) -> bool:
-        """Merges the PR if it has enough LGTM approvals."""
+        """
+        Merges the PR if it has enough LGTM approvals.
+        """
         permission, is_valid = self.check_membership(self.comment_sender)
         if not is_valid:
             msg = INSUFFICIENT_PERMISSIONS.format(

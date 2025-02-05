@@ -98,8 +98,10 @@ makefile targets.
 
 This project use generated PipelineRun as described
 [here](https://blog.chmouel.com/2020/07/28/tekton-yaml-templates-and-script-feature/),
-you will need to edit the files in [code](./code) and run `make` to regenerate
-the main PipelineRun.
+you will need to edit the files in the [prow](./prow) directory and run `make` to regenerate
+the main PipelineRun. There is a script that inline it in the [pipeline-prow.yaml](./pipeline-prow.yaml).
+That allows to separate the logic from the main PipelineRun and be able to use
+your editor properly when editing the code (with linters, lsp, checkers etc..).
 
 Please install the pre-commit hooks by running `pre-commit install` to make sure
 your commits include the necessary files.

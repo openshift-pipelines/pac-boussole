@@ -21,10 +21,10 @@ generate:
 		echo "####### You probably want to use ../pipeline-prow.yaml instead, this is mostly for dev" >> $(PIPELINE_EMBED_PROW) && \
 		$(UVCMD) ./hack/tekton-task-embed-script.py ./prow/base.yaml >> $(PIPELINE_EMBED_PROW)
 
-unittests:
+test:
 	@uvx --with=requests --with=pytest-cov pytest -v prow --cov=prow --cov-report=term-missing
 
-test:
+directtest:
 	@ [[ -n "$(CMD)" ]] || (echo "Please specify a command to run as argument: like make test CMD=/lgtm" && exit 1)
 	@env GH_PR_NUM=$(GH_PR_NUM) GH_REPO_NAME=$(GH_REPO_NAME) GH_REPO_OWNER=$(GH_REPO_OWNER) \
 		GH_PR_SENDER=$(GH_PR_SENDER) \

@@ -273,7 +273,7 @@ class PRHandler:
 
         return permission, permission in self.lgtm_permissions
 
-    def lgtm(self) -> int:
+    def lgtm(self, send_comment: bool = True) -> int:
         """
         Processes LGTM votes and approves the PR if the threshold is met.
         """
@@ -310,8 +310,6 @@ class PRHandler:
             if is_valid:
                 valid_votes += 1
 
-        self.post_lgtm_breakdown(valid_votes, lgtm_users)
-
         if valid_votes >= self.lgtm_threshold:
             users_table = ""
             for user, permission in lgtm_users.items():
@@ -334,6 +332,8 @@ class PRHandler:
                 valid_votes=valid_votes, threshold=self.lgtm_threshold
             )
             print(message)
+            if send_comment:
+                self.post_lgtm_breakdown(valid_votes, lgtm_users)
             sys.exit(0)
 
         return valid_votes
@@ -372,7 +372,7 @@ class PRHandler:
             print(msg, file=sys.stderr)
             sys.exit(1)
 
-        valid_votes = self.lgtm()
+        valid_votes = self.lgtm(send_comment=False)
         if valid_votes >= self.lgtm_threshold:
             endpoint = f"pulls/{self.pr_num}/merge"
             data = {

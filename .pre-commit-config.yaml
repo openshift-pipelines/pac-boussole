@@ -42,7 +42,7 @@ repos:
       - id: pytest
         name: Run Pytest
         entry: make
-        args: ["unittests"]
+        args: ["test"]
         language: system
         types: [python]
         pass_filenames: false

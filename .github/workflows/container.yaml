@@ -1,0 +1,25 @@
+name: Build Image
+on: [push]
+
+jobs:
+  build-image:
+    name: Build image without Containerfile
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x" # Specify the Python version you need
+
+      - name: Build Image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          base-image: registry.access.redhat.com/ubi9/go-toolset # it has everything we need so let's use it
+          image: pipelines-as-code-prow
+          tags: nightly
+          content: |
+            prow/
+          entrypoint: python prow/prow.py

@@ -30,11 +30,10 @@ jobs:
           content: |
             prow/
           entrypoint: python prow/prow.py
-          oci: true
 
       # Push the image to GHCR (Image Registry)
       - name: Push To GHCR
-        uses: ./
+        uses: redhat-actions/push-to-registry@v2
         id: push
         with:
           image: ${{ steps.build_image.outputs.image }}
@@ -42,8 +41,6 @@ jobs:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: ${{ env.REGISTRY_USER }}
           password: ${{ env.REGISTRY_PASSWORD }}
-          extra-args: |
-            --disable-content-trust
 
       - name: Echo outputs
         run: |

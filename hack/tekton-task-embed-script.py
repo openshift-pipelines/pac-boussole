@@ -34,9 +34,9 @@ from ruamel.yaml import YAML
 REGEXP = r"^#include\s*([^$]*)"
 
 
-def replace(yamlFile: str) -> typing.List:
+def replace(args: argparse.Namespace) -> typing.List:
     yaml = YAML()
-    with open(yamlFile, encoding="utf-8") as fp:
+    with open(args.yaml_file, encoding="utf-8") as fp:
         docs = yaml.load_all(fp)
         rets = []
         for yamlDoc in docs:
@@ -51,27 +51,33 @@ def replace(yamlFile: str) -> typing.List:
                 print(f"available keys: {list(yamlDoc['spec'].keys())}")
                 return []
 
-            for task in steps:
-                if "script" not in task:
-                    continue
-                if not task["script"].startswith("#include "):
-                    continue
-                match = re.match(REGEXP, task["script"])
-                if not match:
-                    continue
-                filename = match[1].strip()
-                rpath = os.path.join(
-                    os.path.dirname(os.path.abspath(yamlFile)), filename
+            if args.using_image:
+                yamlDoc["spec"]["tasks"][0]["taskSpec"]["steps"][0]["image"] = (
+                    args.using_image
                 )
-                if os.path.exists(rpath):
-                    filename = rpath
-                if not os.path.exists(filename):
-                    sys.stderr.write(
-                        f"WARNING: we could not find a file called: {filename} in task: {yamlDoc['metadata']['name']} step: {task['name']}"
+                del yamlDoc["spec"]["tasks"][0]["taskSpec"]["steps"][0]["script"]
+            else:
+                for task in steps:
+                    if "script" not in task:
+                        continue
+                    if not task["script"].startswith("#include "):
+                        continue
+                    match = re.match(REGEXP, task["script"])
+                    if not match:
+                        continue
+                    filename = match[1].strip()
+                    rpath = os.path.join(
+                        os.path.dirname(os.path.abspath(args.yaml_file)), filename
                     )
-                    continue
-                with open(filename, encoding="utf-8") as fp:
-                    task["script"] = fp.read()
+                    if os.path.exists(rpath):
+                        filename = rpath
+                    if not os.path.exists(filename):
+                        sys.stderr.write(
+                            f"WARNING: we could not find a file called: {filename} in task: {yamlDoc['metadata']['name']} step: {task['name']}"
+                        )
+                        continue
+                    with open(filename, encoding="utf-8") as fp:
+                        task["script"] = fp.read()
             output = io.StringIO()
             yaml.dump(yamlDoc, output)
             rets.append(output.getvalue())
@@ -82,6 +88,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Manage your embedded Tekton script task externally"
     )
+    parser.add_argument("--using-image", "-i", help="Using image to run the script")
     parser.add_argument("yaml_file", help="Yaml file to parse")
     return parser.parse_args()
 
@@ -89,7 +96,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> str:
     ret = []
     args = parse_args()
-    replaced = replace(args.yaml_file)
+    replaced = replace(args)
     for doc in replaced:
         if not doc or not doc.strip():
             continue

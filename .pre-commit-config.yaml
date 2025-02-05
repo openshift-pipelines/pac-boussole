@@ -2,7 +2,7 @@ default_install_hook_types: ["pre-push"]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.3.4
+    rev: v0.9.4
     hooks:
       # Run the linter.
       - id: ruff
@@ -10,6 +10,25 @@ repos:
       # Run the formatter.
       - id: ruff-format
 
+  # docformatter - formats docstrings to follow PEP 257
+  - repo: https://github.com/pycqa/docformatter
+    # todo: replace when >v1.7.5 will be published
+    rev: 06907d0267368b49b9180eed423fae5697c1e909
+    hooks:
+      - id: docformatter
+        name: docformatter
+        args:
+          [
+            -r,
+            -i,
+            --pre-summary-newline,
+            --make-summary-multi-line,
+            --wrap-summaries,
+            "90",
+            --wrap-descriptions,
+            "90",
+            prow,
+          ]
   - repo: local
     hooks:
       - id: generated
@@ -17,3 +36,19 @@ repos:
         name: Check Generated Files
         entry: make
         args: ["check"]
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: Run Pytest
+        entry: make
+        args: ["unittests"]
+        language: system
+        types: [python]
+        pass_filenames: false
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        files: ^.*\.(py|c|h|md|rst|yml)$

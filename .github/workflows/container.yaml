@@ -29,7 +29,7 @@ jobs:
           tags: ${{ env.IMAGE_TAGS }}
           content: |
             prow/
-          entrypoint: python prow/prow.py
+          entrypoint: python3 prow.py
 
       # Push the image to GHCR (Image Registry)
       - name: Push To GHCR

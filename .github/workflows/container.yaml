@@ -1,5 +1,11 @@
 name: Build Image
 on: [push]
+env:
+  IMAGE_NAME: pipelines-as-code-prow
+  IMAGE_TAGS: nightly ${{ github.sha }}
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  REGISTRY_USER: ${{ github.actor }}
+  REGISTRY_PASSWORD: ${{ github.token }}
 
 jobs:
   build-image:
@@ -15,11 +21,30 @@ jobs:
           python-version: "3.x" # Specify the Python version you need
 
       - name: Build Image
+        id: build_image
         uses: redhat-actions/buildah-build@v2
         with:
           base-image: registry.access.redhat.com/ubi9/go-toolset # it has everything we need so let's use it
-          image: pipelines-as-code-prow
-          tags: nightly
+          image: ${{ env.IMAGE_NAME }}
+          tags: ${{ env.IMAGE_TAGS }}
           content: |
             prow/
           entrypoint: python prow/prow.py
+          oci: true
+
+      # Push the image to GHCR (Image Registry)
+      - name: Push To GHCR
+        uses: ./
+        id: push
+        with:
+          image: ${{ steps.build_image.outputs.image }}
+          tags: ${{ steps.build_image.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+          extra-args: |
+            --disable-content-trust
+
+      - name: Echo outputs
+        run: |
+          echo "${{ toJSON(steps.push.outputs) }}"

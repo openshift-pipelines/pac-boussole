@@ -34,41 +34,16 @@ spec:
                   value: "$(params.repo_url)"
                 - name: revision
                   value: "$(params.revision)"
-            - name: check-generate
+
+            - name: pre-commit
               image: registry.access.redhat.com/ubi9/go-toolset
               workingDir: $(workspaces.source.path)
               script: |
+                git config --global --add safe.directory $(workspaces.source.path)
                 curl -LsSf https://astral.sh/uv/install.sh | sh
                 source $HOME/.local/bin/env
-                make check
-            # - name: shellcheck
-            #   displayName: "Shell scripts linter"
-            #   image: koalaman/shellcheck-alpine
-            #   workingDir: $(workspaces.source.path)
-            #   script: |
-            #     shellcheck $(find hack/ -type f -regex ".*sh" -print)
-            - name: ruff-lint
-              displayName: "Python Linter (ruff)"
-              image: ghcr.io/astral-sh/ruff
-              workingDir: $(workspaces.source.path)
-              args: ["check", "$(workspaces.source.path)"]
-            - name: ruff-format
-              displayName: "Python Formatter (ruff)"
-              image: ghcr.io/astral-sh/ruff
-              workingDir: $(workspaces.source.path)
-              args: ["format", "$(workspaces.source.path)", "--check"]
-            - name: yamllint
-              displayName: "YAML Linter"
-              image: cytopia/yamllint
-              workingDir: $(workspaces.source.path)
-              script: |
-                yamllint -f parsable -c .yamllint $(find . -type f -regex ".*y[a]ml" -print)
-            - name: codespell
-              image: registry.access.redhat.com/ubi9/python-312
-              workingDir: $(workspaces.source.path)
-              script: |
-                pip3 install codespell
-                codespell -d docs/content pkg test
+                uvx pre-commit run --all-files
+
             - name: markdownlint
               displayName: "Markdown Linter"
               image: thegeeklab/markdownlint-cli

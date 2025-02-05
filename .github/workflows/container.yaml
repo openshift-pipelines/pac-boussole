@@ -1,7 +1,7 @@
 name: Build Multi-Arch Image
 env:
   IMAGE_NAME: pipelines-as-code-prow
-  IMAGE_TAGS: nightly ${{ github.sha }}
+  IMAGE_TAGS: nightly
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
   REGISTRY_USER: ${{ github.actor }}
   REGISTRY_PASSWORD: ${{ github.token }}

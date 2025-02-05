@@ -57,7 +57,7 @@ spec:
     # - name: git_auth_secret_key
     #   value: git-provider-token
     #
-    # The /lgtm treshold needed of approvers for a PR to be approved (default: 1)
+    # The /lgtm threshold needed of approvers for a PR to be approved (default: 1)
     # - name: lgtm_threshold
     #   value: "1"
     #

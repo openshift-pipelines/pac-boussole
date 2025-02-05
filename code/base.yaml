@@ -20,7 +20,7 @@ spec:
     - name: trigger_comment
     - name: lgtm_permissions
       default: "admin,write"
-    - name: lgtm_treshold
+    - name: lgtm_threshold
       default: "1"
     - name: lgtm_review_event
       default: "APPROVE"
@@ -54,8 +54,8 @@ spec:
                   $(params.trigger_comment)
               - name: GH_MERGE_METHOD
                 value: $(params.merge_method)
-              - name: PAC_LGTM_TRESHOLD
-                value: "$(params.lgtm_treshold)"
+              - name: PAC_LGTM_THRESHOLD
+                value: "$(params.lgtm_threshold)"
               - name: PAC_LGTM_PERMISSIONS
                 value: "$(params.lgtm_permissions)"
               - name: PAC_LGTM_REVIEW_EVENT

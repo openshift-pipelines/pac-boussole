@@ -136,6 +136,19 @@ LGTM_BREAKDOWN_TEMPLATE = """
 
 """
 
+SUCCESS_MERGED = """
+### ✅ PR Successfully Merged
+
+* Merge method: `{merge_method}`
+* Merged by: **@{comment_sender}**
+* Total approvals: **{valid_votes}/{lgtm_threshold}**
+
+**Approvals Summary:**
+| Reviewer | Permission | Status |
+|----------|------------|--------|
+{users_table}
+"""
+
 
 class GitHubAPI:
     """Wrapper for GitHub API calls to make them mockable."""
@@ -368,18 +381,13 @@ class PRHandler:
                         f"| @{user} | `{permission or 'unknown'}` | {valid_mark} |\n"
                     )
 
-                success_message = f"""
-### ✅ PR Successfully Merged
-
-    * Merge method: `{self.merge_method}`
-    * Merged by: **@{self.comment_sender}**
-    * Total approvals: **{valid_votes}/{self.lgtm_threshold}**
-
-    **Approvals Summary:**
-    | Reviewer | Permission | Status |
-    |----------|------------|--------|
-    {users_table}
-    """
+                success_message = SUCCESS_MERGED.format(
+                    merge_method=self.merge_method,
+                    comment_sender=self.comment_sender,
+                    valid_votes=valid_votes,
+                    lgtm_threshold=self.lgtm_threshold,
+                    users_table=users_table,
+                )
                 self.post_comment(success_message)
                 return True
             else:

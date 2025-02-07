@@ -1,0 +1,11 @@
+[project]
+name = "pipelines-as-code-prow"
+version = "0.1.0"
+description = "Pipelines as Code prow let you interact with tekton pipelines via Gitops command a la prow."
+readme = "README.md"
+requires-python = ">=3.12"
+
+[dependency-groups]
+dev = [
+    "pytest",
+]

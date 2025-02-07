@@ -36,7 +36,7 @@ metadata:
 spec:
   params:
     - name: trigger_comment
-      value: |
+      value: |- # make sure to use |- or it will fail with a simple |
         {{ trigger_comment }}
     - name: repo_owner
       value: "{{ repo_owner }}"

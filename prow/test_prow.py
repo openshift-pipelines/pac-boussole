@@ -5,6 +5,24 @@ import pytest
 from prow.prow import GitHubAPI, PRHandler
 
 
+class MyFakeResponse:
+    def __init__(self, status_code, body):
+        self.body = body
+        self.status_code = status_code
+
+    def get(self, _arg, _arg2):
+        print(_arg, _arg2)
+        print(self.body)
+        return self.body
+
+    def json(self):
+        return self.body
+
+    def __iter__(self):
+        for item in self.body:
+            yield item
+
+
 @pytest.fixture
 def mock_api():
     api = GitHubAPI(
@@ -94,3 +112,126 @@ def test_lgtm(pr_handler, mock_api):
 
     assert pr_handler.lgtm() == 2
     mock_api.get.return_value.status_code = 200
+
+
+def test_lgtm_self_approval(pr_handler, mock_api):
+    mock_api.get.return_value.status_code = 200
+
+    # Mock response for PR comments with self-approval
+    mock_api.get.return_value.json.return_value = [
+        {"body": "/lgtm", "user": {"login": "test_user"}, "html_url": "http://test.url"}
+    ]
+
+    with pytest.raises(SystemExit) as exc_info:
+        pr_handler.lgtm()
+    assert exc_info.value.code == 1
+
+
+def test_lgtm_comments_fetch_error(pr_handler, mock_api):
+    mock_api.get.return_value.status_code = 500
+    mock_api.get.return_value.text = "API Error"
+
+    with pytest.raises(SystemExit) as exc_info:
+        pr_handler.lgtm()
+    assert exc_info.value.code == 1
+
+
+def test_check_membership_invalid_response(pr_handler, mock_api):
+    mock_api.get.return_value.status_code = 404
+    permission, is_valid = pr_handler.check_membership("nonexistent_user")
+    assert permission is None
+    assert is_valid is False
+
+
+def test_merge_pr_success(pr_handler, mock_api):
+    all_comments = MyFakeResponse(
+        200,
+        [
+            {"body": "/lgtm", "user": {"login": "reviewer1"}},
+            {"body": "/lgtm", "user": {"login": "reviewer2"}},
+        ],
+    )
+
+    mock_responses = [
+        MyFakeResponse(200, {"permission": "admin"}),
+        all_comments,
+        MyFakeResponse(200, {"permission": "write"}),  # reviewer1
+        MyFakeResponse(200, {"permission": "write"}),  # reviewer2
+        all_comments,
+        MyFakeResponse(200, {"permission": "write"}),  # reviewer1
+        MyFakeResponse(200, {"permission": "write"}),  # reviewer2
+    ]
+
+    mock_api.get.side_effect = mock_responses
+
+    # Mock successful merge
+    mock_api.put.return_value.status_code = 200
+    mock_api.post.return_value.status_code = 200
+
+    assert pr_handler.merge_pr() is True
+
+    # Verify merge call
+    mock_api.put.assert_called_with(
+        "pulls/123/merge",
+        {
+            "merge_method": "squash",
+            "commit_title": "Merged PR #123",
+            "commit_message": "PR #123 merged by test_user with 2 LGTM votes.",
+        },
+    )
+
+
+def test_merge_pr_insufficient_permissions(pr_handler, mock_api):
+    # Mock permission check failure
+    mock_api.get.return_value.status_code = 200
+    mock_api.get.return_value.json.return_value = {"permission": "read"}
+
+    with pytest.raises(SystemExit) as exc_info:
+        pr_handler.merge_pr()
+    assert exc_info.value.code == 1
+
+
+def test_merge_pr_failure(pr_handler, mock_api):
+    # Mock successful LGTM check
+    def mock_get_responses():
+        return [
+            type(
+                "Response",
+                (),
+                {
+                    "status_code": 200,
+                    "json": lambda: [
+                        {"body": "/lgtm", "user": {"login": "reviewer1"}},
+                    ],
+                },
+            ),
+            type(
+                "Response",
+                (),
+                {"status_code": 200, "json": lambda: {"permission": "write"}},
+            ),
+        ]
+
+    mock_responses = [
+        MyFakeResponse(200, {"permission": "peon"}),
+    ]
+    mock_api.get.side_effect = mock_responses
+
+    # Mock failed merge
+    mock_api.put.return_value.status_code = 405
+    mock_api.put.return_value.text = "Merge conflict"
+    with pytest.raises(SystemExit) as mock_exit:
+        assert pr_handler.merge_pr() is False
+        assert mock_exit.value.code == 1
+
+
+def test_post_lgtm_breakdown(pr_handler, mock_api):
+    lgtm_users = {"user1": "write", "user2": "read", "user3": "admin"}
+    pr_handler.post_lgtm_breakdown(2, lgtm_users)
+
+    # Verify that post_comment was called with the correct breakdown table
+    mock_api.post.assert_called()
+    call_args = mock_api.post.call_args[0][1]
+    assert "| @user1 | `write`" in call_args["body"]
+    assert "| @user2 | `read`" in call_args["body"]
+    assert "| @user3 | `admin`" in call_args["body"]

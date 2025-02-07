@@ -1,5 +1,6 @@
 # Those variables are for testing
 CMD =
+ARGS=
 UVCMD = uv run
 PIPELINE_PROW=pipeline-prow.yaml
 PIPELINE_EMBED_PROW=hack/pipeline-embedded-prow.yaml
@@ -22,7 +23,7 @@ generate:
 		$(UVCMD) ./hack/tekton-task-embed-script.py ./prow/base.yaml >> $(PIPELINE_EMBED_PROW)
 
 test:
-	@uvx --with=requests --with=pytest-cov pytest -v prow --cov=prow --cov-report=term-missing
+	@uvx --with=requests --with=pytest-cov pytest -v prow --cov=prow --cov-report=term-missing $(ARGS)
 
 directtest:
 	@ [[ -n "$(CMD)" ]] || (echo "Please specify a command to run as argument: like make test CMD=/lgtm" && exit 1)

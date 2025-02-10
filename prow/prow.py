@@ -207,12 +207,35 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         self.lgtm_review_event = args.lgtm_review_event
         self.merge_method = args.merge_method
 
+        self._pr_status = None
+
     def post_comment(self, message: str) -> requests.Response:
         """
         Posts a comment to the pull request.
         """
         endpoint = f"issues/{self.pr_num}/comments"
         return self.api.post(endpoint, {"body": message})
+
+    def get_pr_status(self, number: int) -> requests.Response:
+        """
+        Fetches the status of a pull request.
+        """
+        if self._pr_status:
+            return self._pr_status
+
+        endpoint = f"pulls/{number}"
+        self._pr_status = self.api.get(endpoint)
+        return self._pr_status
+
+    def check_status(self, num: int, status: str) -> bool:
+        pr_status = self.get_pr_status(num)
+        if pr_status.status_code != 200:
+            print(
+                f"⚠️ Unable to fetch PR status for PR #{num}: {pr_status.text}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return pr_status.json().get("state") == status
 
     def assign_unassign(self, command: str, users: List[str]) -> requests.Response:
         """
@@ -586,7 +609,12 @@ def main():
     api = GitHubAPI(api_base, headers)
     pr_handler = PRHandler(api, args)
 
-    # Parse and handle the command
+    # Check if PR is open; if not, exit without action
+    pr_response = api.get(f"pulls/{args.pr_num}")
+    if pr_response.status_code == 200 and pr_response.json().get("state") != "open":
+        print("PR is not open. Skipping operations.")
+        sys.exit(0)
+
     match = re.match(
         r"^/(merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
         args.trigger_comment,
@@ -600,6 +628,10 @@ def main():
 
     command, values = match.groups()
     values = values.split()
+
+    if not pr_handler.check_status(args.pr_num, "open"):
+        print(f"⚠️ PR #{args.pr_num} is not open.", file=sys.stderr)
+        sys.exit(1)
 
     if command in ("assign", "unassign"):
         pr_handler.assign_unassign(command, values)

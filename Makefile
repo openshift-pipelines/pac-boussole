@@ -4,10 +4,11 @@ ARGS=
 UVCMD = uv run
 PIPELINE_PROW = pipeline-prow.yaml
 PIPELINE_EMBED_PROW = hack/pipeline-embedded-prow.yaml
-GH_REPO_OWNER = chmouel
-GH_REPO_NAME = scratchmyback
-GH_PR_NUM = 345
+GH_REPO_OWNER = openshift-pipelines
+GH_REPO_NAME = pipelines-as-code-prow
+GH_PR_NUM = 16
 GH_PR_SENDER = chmouel
+GH_COMMENT_SENDER = anotheruser
 PASS_TOKEN = github/chmouel-token
 PRURL = https://github.com/$(GH_REPO_OWNER)/$(GH_REPO_NAME)/pull/$(GH_PR_NUM)
 CONTAINER_IMAGE = ghcr.io/openshift-pipelines/pipelines-as-code-prow:nightly
@@ -35,7 +36,7 @@ test: ## Run tests with pytest
 directtest: ## Run a specific command directly (e.g., make directtest CMD=/lgtm)
 	@[[ -n "$(CMD)" ]] || (echo "Please specify a command to run as argument: like 'make directtest CMD=/lgtm'" && exit 1)
 	@env GH_PR_NUM=$(GH_PR_NUM) GH_REPO_NAME=$(GH_REPO_NAME) GH_REPO_OWNER=$(GH_REPO_OWNER) \
-		GH_PR_SENDER=$(GH_PR_SENDER) \
+		GH_PR_SENDER=$(GH_PR_SENDER) GH_COMMENT_SENDER=$(GH_COMMENT_SENDER) \
 		PAC_TRIGGER_COMMENT="$(CMD)" GITHUB_TOKEN=`pass show $(PASS_TOKEN)` \
 		./prow/prow.py
 

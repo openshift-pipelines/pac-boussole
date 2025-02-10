@@ -245,3 +245,24 @@ def test_post_lgtm_breakdown(pr_handler, mock_api):
     assert "| @user1 | `write`" in call_args["body"]
     assert "| @user2 | `read`" in call_args["body"]
     assert "| @user3 | `admin`" in call_args["body"]
+
+
+def test_check_status(pr_handler, mock_api):
+    # Mock successful response with state "open"
+    mock_api.get.return_value.status_code = 200
+    mock_api.get.return_value.json.return_value = {"state": "open"}
+    assert pr_handler.check_status("123", "open") is True
+    assert pr_handler.check_status("123", "closed") is False
+
+    # Mock successful response with state "closed"
+    mock_api.get.return_value.status_code = 200
+    mock_api.get.return_value.json.return_value = {"state": "closed"}
+    assert pr_handler.check_status("123", "open") is False
+    assert pr_handler.check_status("123", "closed") is True
+
+    # Mock unsuccessful response
+    mock_api.get.return_value.status_code = 404
+    mock_api.get.return_value.text = "Not Found"
+    with pytest.raises(SystemExit) as exc_info:
+        pr_handler.check_status("123", "open")
+    assert exc_info.value.code == 1

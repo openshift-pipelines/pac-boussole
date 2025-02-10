@@ -359,6 +359,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         """
         Merges the PR if it has enough LGTM approvals.
         """
+        # Check if the user has sufficient permissions to merge
         permission, is_valid = self.check_membership(self.comment_sender)
         if not is_valid:
             msg = INSUFFICIENT_PERMISSIONS.format(
@@ -370,7 +371,9 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             print(msg, file=sys.stderr)
             sys.exit(1)
 
-        valid_votes = self.lgtm(send_comment=False)
+        # Fetch LGTM votes and check if the threshold is met
+        valid_votes, lgtm_users = self.fetch_and_validate_lgtm_votes()
+
         if valid_votes >= self.lgtm_threshold:
             endpoint = f"pulls/{self.pr_num}/merge"
             data = {
@@ -380,24 +383,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             }
             response = self.api.put(endpoint, data)
             if response and response.status_code == 200:
-                # Get the LGTM breakdown for the success message
-                endpoint = f"issues/{self.pr_num}/comments"
-                comments = self.api.get(endpoint).json()
-                lgtm_users: Dict[str, Optional[str]] = {}
-
-                for comment in comments:
-                    body = comment.get("body", "")
-                    if re.search(r"^/lgtm\b", body, re.IGNORECASE):
-                        user = comment["user"]["login"]
-                        if user != self.pr_sender:  # Skip self-approvals
-                            lgtm_users[user] = None
-
-                # Get permissions for all LGTM users
-                for user in lgtm_users:  # Instead of lgtm_users.keys()
-                    permission, _ = self.check_membership(user)
-                    lgtm_users[user] = permission
-
-                # Create the users table for the message
+                # Create the users table for the success message
                 users_table = ""
                 for user, permission in lgtm_users.items():
                     is_valid = permission in self.lgtm_permissions
@@ -415,6 +401,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
                 )
                 self.post_comment(success_message)
                 return True
+
             self.post_comment(
                 MERGE_FAILED.format(
                     pr_num=self.pr_num,
@@ -423,12 +410,55 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
                 ),
             )
             return False
+
         self.post_comment(
             NOT_ENOUGH_LGTM.format(
                 valid_votes=valid_votes, threshold=self.lgtm_threshold
             ),
         )
         return False
+
+    def fetch_and_validate_lgtm_votes(self):
+        """
+        Fetches LGTM votes and validates them.
+
+        Returns the number of valid votes and a dictionary of users with their
+        permissions.
+        """
+        endpoint = f"issues/{self.pr_num}/comments"
+        response = self.api.get(endpoint)
+        if response.status_code != 200:
+            error_message = COMMENTS_FETCH_ERROR.format(
+                status_code=response.status_code,
+                response_text=response.text,
+                pr_num=self.pr_num,
+            )
+            print(error_message, file=sys.stderr)
+            sys.exit(1)
+
+        comments = response.json()
+        lgtm_users: Dict[str, Optional[str]] = {}
+        for comment in comments:
+            body = comment.get("body", "")
+            if re.search(r"^/lgtm\b", body, re.IGNORECASE):
+                user = comment["user"]["login"]
+                if user == self.pr_sender:
+                    msg = SELF_APPROVAL_ERROR.format(
+                        user=user, comment_url=comment["html_url"]
+                    )
+                    self.post_comment(msg)
+                    print(msg, file=sys.stderr)
+                    sys.exit(1)
+                lgtm_users[user] = None
+
+        valid_votes = 0
+        for user in lgtm_users:
+            permission, is_valid = self.check_membership(user)
+            lgtm_users[user] = permission
+            if is_valid:
+                valid_votes += 1
+
+        return valid_votes, lgtm_users
 
 
 def parse_args() -> argparse.Namespace:

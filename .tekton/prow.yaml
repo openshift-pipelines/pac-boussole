@@ -5,7 +5,7 @@ metadata:
   name: prow-commands
   annotations:
     pipelinesascode.tekton.dev/pipeline: "./hack/pipeline-embedded-prow.yaml"
-    pipelinesascode.tekton.dev/on-comment: "^/(merge|help|lgtm|(assign|unassign|label|unlabel)[ ].*)$"
+    pipelinesascode.tekton.dev/on-comment: "^/(rebase|merge|help|lgtm|(assign|unassign|label|unlabel)[ ].*)$"
     pipelinesascode.tekton.dev/max-keep-runs: "2"
 spec:
   params:

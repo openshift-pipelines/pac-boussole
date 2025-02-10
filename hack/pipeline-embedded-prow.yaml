@@ -7,7 +7,7 @@ metadata:
   name: prow-commands
   annotations:
     pipelinesascode.tekton.dev/on-comment: |
-      ^/(help|merge|lgtm|(assign|unassign|label|unlabel)[ ].*)$
+      ^/(help|rebase|merge|lgtm|(assign|unassign|label|unlabel)[ ].*)$
     pipelinesascode.tekton.dev/max-keep-runs: '5'
 spec:
   params:
@@ -173,6 +173,7 @@ spec:
           | `/unlabel bug feature`      | Removes labels from the PR                                                      |
           | `/lgtm`                     | Approves the PR if at least {LGTM_THRESHOLD} org members have commented `/lgtm` |
           | `/merge`                    | Merges the PR if it has enough `/lgtm` approvals                                |
+          | `/rebase`                   | Rebases the PR branch on the base branch                                        |
           | `/help`                     | Shows this help message                                                         |
           """
 
@@ -359,6 +360,11 @@ spec:
                       return None, False
 
                   return permission, permission in self.lgtm_permissions
+
+              def rebase(self) -> requests.Response:
+                  endpoint = f"pulls/{self.pr_num}/update-branch"
+                  self.post_comment("✅ Rebased the PR branch on the base branch.")
+                  return self.api.put(endpoint, {})
 
               def lgtm(self, send_comment: bool = True) -> int:
                   """
@@ -675,7 +681,7 @@ spec:
               pr_handler = PRHandler(api, args)
 
               match = re.match(
-                  r"^/(merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
+                  r"^/(rebase|merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
                   args.trigger_comment,
               )
               if not match:
@@ -700,6 +706,8 @@ spec:
                   pr_handler.unlabel(values)
               elif command == "lgtm":
                   pr_handler.lgtm()
+              elif command == "rebase":
+                  pr_handler.rebase()
               elif command == "merge":
                   pr_handler.merge_pr()
               elif command == "help":

@@ -16,6 +16,7 @@ The following commands are supported:
 | `/unlabel bug feature`  | Removes labels from the PR                                       |
 | `/lgtm`                 | Approves the PR if at least 1 org members have commented `/lgtm` |
 | `/merge`                | Merges the PR if it has enough `/lgtm` approvals                 |
+| `/rebase`                   | Rebases the PR branch on the base branch                                        |
 | `/help`                 | Shows this help message                                          |
 
 ## Usage
@@ -31,7 +32,7 @@ metadata:
   name: prow-commands
   annotations:
     pipelinesascode.tekton.dev/pipeline: "https://raw.githubusercontent.com/openshift-pipelines/pipelines-as-code-prow/refs/heads/main/pipeline-prow.yaml"
-    pipelinesascode.tekton.dev/on-comment: "^/(help|merge|lgtm|(assign|unassign|label|unlabel)[ ].*)$"
+    pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|merge|lgtm|(assign|unassign|label|unlabel)[ ].*)$"
     pipelinesascode.tekton.dev/max-keep-runs: "2"
 spec:
   params:

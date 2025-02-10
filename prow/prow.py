@@ -8,6 +8,7 @@
 #     "requests",
 # ]
 # ///
+import argparse
 import os
 import re
 import sys
@@ -15,7 +16,7 @@ from typing import Dict, List, Optional, Tuple
 
 import requests  # type: ignore
 
-LGTM_THRESHOLD = int(os.getenv("PAC_LGTM_THRESHOLD", 1))
+LGTM_THRESHOLD = int(os.getenv("PAC_LGTM_THRESHOLD", "1"))
 
 # Error and status message templates
 PERMISSION_CHECK_ERROR = """
@@ -162,28 +163,32 @@ class GitHubAPI:
     Wrapper for GitHub API calls to make them mockable.
     """
 
+    timeout: int = 10
+
     def __init__(self, base_url: str, headers: Dict[str, str]):
         self.base_url = base_url
         self.headers = headers
 
     def get(self, endpoint: str) -> requests.Response:
         url = f"{self.base_url}/{endpoint}"
-        return requests.get(url, headers=self.headers)
+        return requests.get(url, headers=self.headers, timeout=self.timeout)
 
     def post(self, endpoint: str, data: Dict) -> requests.Response:
         url = f"{self.base_url}/{endpoint}"
-        return requests.post(url, json=data, headers=self.headers)
+        return requests.post(url, json=data, headers=self.headers, timeout=self.timeout)
 
     def put(self, endpoint: str, data: Dict) -> requests.Response:
         url = f"{self.base_url}/{endpoint}"
-        return requests.put(url, json=data, headers=self.headers)
+        return requests.put(url, json=data, headers=self.headers, timeout=self.timeout)
 
     def delete(self, endpoint: str, data: Optional[Dict] = None) -> requests.Response:
         url = f"{self.base_url}/{endpoint}"
-        return requests.delete(url, json=data, headers=self.headers)
+        return requests.delete(
+            url, json=data, headers=self.headers, timeout=self.timeout
+        )
 
 
-class PRHandler:
+class PRHandler:  # pylint: disable=too-many-instance-attributes
     """
     Handles PR-related operations.
     """
@@ -191,22 +196,16 @@ class PRHandler:
     def __init__(
         self,
         api: GitHubAPI,
-        pr_num: str,
-        pr_sender: str,
-        comment_sender: str,
-        lgtm_threshold: int,
-        lgtm_permissions: str,
-        lgtm_review_event: str,
-        merge_method: str,
+        args: argparse.Namespace,
     ):
         self.api = api
-        self.pr_num = pr_num
-        self.pr_sender = pr_sender
-        self.comment_sender = comment_sender
-        self.lgtm_threshold = lgtm_threshold
-        self.lgtm_permissions = lgtm_permissions.split(",")
-        self.lgtm_review_event = lgtm_review_event
-        self.merge_method = merge_method
+        self.pr_num = args.pr_num
+        self.pr_sender = args.pr_sender
+        self.comment_sender = args.comment_sender
+        self.lgtm_threshold = args.lgtm_threshold
+        self.lgtm_permissions = args.lgtm_permissions.split(",")
+        self.lgtm_review_event = args.lgtm_review_event
+        self.merge_method = args.merge_method
 
     def post_comment(self, message: str) -> requests.Response:
         """
@@ -304,7 +303,7 @@ class PRHandler:
                 lgtm_users[user] = None
 
         valid_votes = 0
-        for user in lgtm_users.keys():
+        for user in lgtm_users:
             permission, is_valid = self.check_membership(user)
             lgtm_users[user] = permission
             if is_valid:
@@ -327,16 +326,15 @@ class PRHandler:
             data = {"event": self.lgtm_review_event, "body": body}
             print("✅ PR approved with LGTM votes.")
             self.api.post(endpoint, data)
-        else:
-            message = NOT_ENOUGH_LGTM.format(
-                valid_votes=valid_votes, threshold=self.lgtm_threshold
-            )
-            print(message)
-            if send_comment:
-                self.post_lgtm_breakdown(valid_votes, lgtm_users)
-            sys.exit(0)
+            return valid_votes
 
-        return valid_votes
+        message = NOT_ENOUGH_LGTM.format(
+            valid_votes=valid_votes, threshold=self.lgtm_threshold
+        )
+        print(message)
+        if send_comment:
+            self.post_lgtm_breakdown(valid_votes, lgtm_users)
+        sys.exit(0)
 
     def post_lgtm_breakdown(
         self, valid_votes: int, lgtm_users: Dict[str, Optional[str]]
@@ -395,7 +393,7 @@ class PRHandler:
                             lgtm_users[user] = None
 
                 # Get permissions for all LGTM users
-                for user in lgtm_users.keys():
+                for user in lgtm_users:  # Instead of lgtm_users.keys()
                     permission, _ = self.check_membership(user)
                     lgtm_users[user] = permission
 
@@ -417,70 +415,163 @@ class PRHandler:
                 )
                 self.post_comment(success_message)
                 return True
-            else:
-                self.post_comment(
-                    MERGE_FAILED.format(
-                        pr_num=self.pr_num,
-                        status_code=response.status_code,
-                        error_text=response.text,
-                    ),
-                )
-                return False
-        else:
             self.post_comment(
-                NOT_ENOUGH_LGTM.format(
-                    valid_votes=valid_votes, threshold=self.lgtm_threshold
+                MERGE_FAILED.format(
+                    pr_num=self.pr_num,
+                    status_code=response.status_code,
+                    error_text=response.text,
                 ),
             )
             return False
+        self.post_comment(
+            NOT_ENOUGH_LGTM.format(
+                valid_votes=valid_votes, threshold=self.lgtm_threshold
+            ),
+        )
+        return False
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Manage prow-like commands on a GitHub PullRequest.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,  # Show default values in help
+    )
+    # LGTM threshold argument
+    parser.add_argument(
+        "--lgtm-threshold",
+        default=int(os.getenv("PAC_LGTM_THRESHOLD", "1")),  # Default as string
+        type=int,
+        help="Minimum number of LGTM approvals required to merge a PR. "
+        "Can be overridden via the PAC_LGTM_THRESHOLD environment variable.",
+    )
+    # LGTM permissions argument
+    parser.add_argument(
+        "--lgtm-permissions",
+        default=os.getenv("PAC_LGTM_PERMISSIONS", "admin,write"),
+        help="Comma-separated list of GitHub permissions required to give a valid LGTM. "
+        "Can be overridden via the PAC_LGTM_PERMISSIONS environment variable.",
+    )
+    # LGTM review event argument
+    parser.add_argument(
+        "--lgtm-review-event",
+        default=os.getenv("PAC_LGTM_REVIEW_EVENT", "APPROVE"),
+        help="The type of review event to trigger when an LGTM is given. "
+        "Can be overridden via the PAC_LGTM_REVIEW_EVENT environment variable.",
+    )
+    # Merge method argument
+    parser.add_argument(
+        "--merge-method",
+        default=os.getenv("GH_MERGE_METHOD", "rebase"),
+        help="The method to use when merging the pull request. "
+        "Options: 'merge', 'rebase', or 'squash'. "
+        "Can be overridden via the GH_MERGE_METHOD environment variable.",
+    )
+    # GitHub token argument
+    parser.add_argument(
+        "--github-token",
+        default=os.getenv("GITHUB_TOKEN"),
+        help="GitHub API token for authentication. "
+        "Required if the GITHUB_TOKEN environment variable is not set.",
+    )
+    # PR number argument
+    parser.add_argument(
+        "--pr-num",
+        default=os.getenv("GH_PR_NUM"),
+        help="The number of the pull request to operate on. "
+        "Can be overridden via the GH_PR_NUM environment variable.",
+    )
+    # PR sender argument
+    parser.add_argument(
+        "--pr-sender",
+        default=os.getenv("GH_PR_SENDER"),
+        help="The GitHub username of the user who opened the pull request. "
+        "Can be overridden via the GH_PR_SENDER environment variable.",
+    )
+    # Comment sender argument
+    parser.add_argument(
+        "--comment-sender",
+        default=os.getenv("GH_COMMENT_SENDER"),
+        help="The GitHub username of the user who triggered the command. "
+        "Can be overridden via the GH_COMMENT_SENDER environment variable.",
+    )
+    # Repository owner argument
+    parser.add_argument(
+        "--repo-owner",
+        default=os.getenv("GH_REPO_OWNER"),
+        help="The owner (organization or user) of the GitHub repository. "
+        "Can be overridden via the GH_REPO_OWNER environment variable.",
+    )
+    # Repository name argument
+    parser.add_argument(
+        "--repo-name",
+        default=os.getenv("GH_REPO_NAME"),
+        help="The name of the GitHub repository. "
+        "Can be overridden via the GH_REPO_NAME environment variable.",
+    )
+    # Trigger comment argument
+    parser.add_argument(
+        "--trigger-comment",
+        default=os.getenv("PAC_TRIGGER_COMMENT"),
+        help="The comment that triggered this command. "
+        "Can be overridden via the PAC_TRIGGER_COMMENT environment variable.",
+    )
+    parsed = parser.parse_args()
+    if not parsed.github_token:
+        parser.error(
+            "GitHub API token is required. Use --github-token or GITHUB_TOKEN env variable."
+        )
+    if not parsed.pr_num:
+        parser.error("PR number is required. Use --pr-num or GH_PR_NUM env variable.")
+    if not parsed.pr_sender:
+        parser.error(
+            "PR sender is required. Use --pr-sender or GH_PR_SENDER env variable."
+        )
+    if not parsed.comment_sender:
+        parser.error(
+            "Comment sender is required. Use --comment-sender or GH_COMMENT_SENDER env variable."
+        )
+    if not parsed.repo_owner:
+        parser.error(
+            "Repository owner is required. Use --repo-owner or GH_REPO_OWNER env variable."
+        )
+    if not parsed.repo_name:
+        parser.error(
+            "Repository name is required. Use --repo-name or GH_REPO_NAME env variable."
+        )
+    if not parsed.trigger_comment:
+        parser.error(
+            "Trigger comment is required. Use --trigger-comment or PAC_TRIGGER_COMMENT env variable."
+        )
+    return parsed
 
 
 def main():
-    # Load environment variables
-    lgtm_threshold = int(LGTM_THRESHOLD)
-    lgtm_permissions = os.getenv("PAC_LGTM_PERMISSIONS", "admin,write")
-    lgtm_review_event = os.getenv("PAC_LGTM_REVIEW_EVENT", "APPROVE")
-    github_token = os.getenv("GITHUB_TOKEN")
-    pr_num = os.getenv("GH_PR_NUM")
-    pr_sender = os.getenv("GH_PR_SENDER")
-    comment_sender = os.getenv("GH_COMMENT_SENDER")
-    repo_owner = os.getenv("GH_REPO_OWNER")
-    repo_name = os.getenv("GH_REPO_NAME")
-    merge_method = os.getenv("GH_MERGE_METHOD", "rebase")
-    trigger_comment = os.getenv("PAC_TRIGGER_COMMENT", "")
-
+    args = parse_args()
     # Initialize GitHub API and PR handler
-    api_base = f"https://api.github.com/repos/{repo_owner}/{repo_name}"
+    api_base = f"https://api.github.com/repos/{args.repo_owner}/{args.repo_name}"
     headers = {
-        "Authorization": f"Bearer {github_token}",
+        "Authorization": f"Bearer {args.github_token}",
         "Accept": "application/vnd.github.v3+json",
     }
     api = GitHubAPI(api_base, headers)
-    pr_handler = PRHandler(
-        api,
-        pr_num,
-        pr_sender,
-        comment_sender,
-        lgtm_threshold,
-        lgtm_permissions,
-        lgtm_review_event,
-        merge_method,
-    )
+    pr_handler = PRHandler(api, args)
 
     # Parse and handle the command
     match = re.match(
-        r"^/(merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)", trigger_comment
+        r"^/(merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
+        args.trigger_comment,
     )
     if not match:
         print(
-            f"⚠️ No valid command found in comment: {trigger_comment}", file=sys.stderr
+            f"⚠️ No valid command found in comment: {args.trigger_comment}",
+            file=sys.stderr,
         )
         sys.exit(1)
 
     command, values = match.groups()
     values = values.split()
 
-    if command == "assign" or command == "unassign":
+    if command in ("assign", "unassign"):
         pr_handler.assign_unassign(command, values)
     elif command == "label":
         pr_handler.label(values)

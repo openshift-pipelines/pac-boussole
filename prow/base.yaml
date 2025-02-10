@@ -32,7 +32,7 @@ spec:
       taskSpec:
         steps:
           - name: manage-pr
-            image: registry.access.redhat.com/ubi9/ubi
+            image: ghcr.io/openshift-pipelines/pipelines-as-code-prow:nightly
             env:
               - name: GITHUB_TOKEN
                 valueFrom:

@@ -5,7 +5,7 @@ metadata:
   name: prow-commands
   annotations:
     pipelinesascode.tekton.dev/on-comment: |
-      ^/(help|merge|lgtm|(assign|unassign|label|unlabel)[ ].*)$
+      ^/(help|rebase|merge|lgtm|(assign|unassign|label|unlabel)[ ].*)$
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:

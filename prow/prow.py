@@ -108,6 +108,7 @@ HELP_TEXT = f"""
 | `/unlabel bug feature`      | Removes labels from the PR                                                      |
 | `/lgtm`                     | Approves the PR if at least {LGTM_THRESHOLD} org members have commented `/lgtm` |
 | `/merge`                    | Merges the PR if it has enough `/lgtm` approvals                                |
+| `/rebase`                   | Rebases the PR branch on the base branch                                        |
 | `/help`                     | Shows this help message                                                         |
 """
 
@@ -294,6 +295,11 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             return None, False
 
         return permission, permission in self.lgtm_permissions
+
+    def rebase(self) -> requests.Response:
+        endpoint = f"pulls/{self.pr_num}/update-branch"
+        self.post_comment("✅ Rebased the PR branch on the base branch.")
+        return self.api.put(endpoint, {})
 
     def lgtm(self, send_comment: bool = True) -> int:
         """
@@ -610,7 +616,7 @@ def main():
     pr_handler = PRHandler(api, args)
 
     match = re.match(
-        r"^/(merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
+        r"^/(rebase|merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
         args.trigger_comment,
     )
     if not match:
@@ -635,6 +641,8 @@ def main():
         pr_handler.unlabel(values)
     elif command == "lgtm":
         pr_handler.lgtm()
+    elif command == "rebase":
+        pr_handler.rebase()
     elif command == "merge":
         pr_handler.merge_pr()
     elif command == "help":

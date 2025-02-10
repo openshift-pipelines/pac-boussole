@@ -609,12 +609,6 @@ def main():
     api = GitHubAPI(api_base, headers)
     pr_handler = PRHandler(api, args)
 
-    # Check if PR is open; if not, exit without action
-    pr_response = api.get(f"pulls/{args.pr_num}")
-    if pr_response.status_code == 200 and pr_response.json().get("state") != "open":
-        print("PR is not open. Skipping operations.")
-        sys.exit(0)
-
     match = re.match(
         r"^/(merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
         args.trigger_comment,

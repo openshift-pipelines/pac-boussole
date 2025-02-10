@@ -1,3 +1,4 @@
+import argparse
 from unittest.mock import MagicMock
 
 import pytest
@@ -36,9 +37,8 @@ def mock_api():
 
 
 @pytest.fixture
-def pr_handler(mock_api):
-    return PRHandler(
-        api=mock_api,
+def mock_args():
+    args = argparse.Namespace(
         pr_num="123",
         pr_sender="test_user",
         comment_sender="reviewer",
@@ -46,7 +46,17 @@ def pr_handler(mock_api):
         lgtm_permissions="admin,write",
         lgtm_review_event="APPROVE",
         merge_method="squash",
+        repo_owner="test",
+        repo_name="repo",
+        github_token="test_token",
+        trigger_comment="/lgtm",
     )
+    return args
+
+
+@pytest.fixture
+def pr_handler(mock_api, mock_args):
+    return PRHandler(api=mock_api, args=mock_args)
 
 
 def test_post_comment(pr_handler, mock_api):

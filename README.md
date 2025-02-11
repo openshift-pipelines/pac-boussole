@@ -1,4 +1,4 @@
-# Prow commands with Pipelines-as-Code
+# Prow control commands with Pipelines-as-Code
 
 ## Overview
 

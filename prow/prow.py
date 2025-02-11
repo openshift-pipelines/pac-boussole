@@ -210,6 +210,15 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
         self._pr_status = None
 
+    def check_response(self, resp: requests.Response) -> bool:
+        if resp.status_code > 200 and resp.status_code < 300:
+            return True
+        print(
+            f"Error while executing the command: status: {resp.status_code} {resp.text}",
+            file=sys.stderr,
+        )
+        return False
+
     def post_comment(self, message: str) -> requests.Response:
         """
         Posts a comment to the pull request.
@@ -633,20 +642,25 @@ def main():
         print(f"⚠️ PR #{args.pr_num} is not open.", file=sys.stderr)
         sys.exit(1)
 
+    response = None
     if command in ("assign", "unassign"):
-        pr_handler.assign_unassign(command, values)
+        response = pr_handler.assign_unassign(command, values)
     elif command == "label":
-        pr_handler.label(values)
+        response = pr_handler.label(values)
     elif command == "unlabel":
-        pr_handler.unlabel(values)
+        response = pr_handler.unlabel(values)
+    elif command == "rebase":
+        response = pr_handler.rebase()
+    elif command == "help":
+        response = pr_handler.post_comment(HELP_TEXT.strip())
     elif command == "lgtm":
         pr_handler.lgtm()
-    elif command == "rebase":
-        pr_handler.rebase()
     elif command == "merge":
         pr_handler.merge_pr()
-    elif command == "help":
-        pr_handler.post_comment(HELP_TEXT.strip())
+
+    if response:
+        if not pr_handler.check_response(response):
+            sys.exit(1)
 
 
 if __name__ == "__main__":

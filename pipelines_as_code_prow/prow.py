@@ -28,6 +28,8 @@ from .messages import (  # isort:skip
     PERMISSION_DATA_MISSING,
     SELF_APPROVAL_ERROR,
     SUCCESS_MERGED,
+    CHERRY_PICK_ERROR,
+    CHERRY_PICK_SUCCESS,
 )
 
 
@@ -84,7 +86,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
     def check_response(self, resp: requests.Response) -> bool:
         """
-        Checks the status code of the response.
+        Checks the response status code and prints an error message if needed.
         """
         if resp.status_code >= 200 and resp.status_code < 300:
             return True
@@ -94,73 +96,63 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         )
         return False
 
-    def post_comment(self, message: str) -> requests.Response:
+    def _post_comment(self, message: str) -> requests.Response:
         """
         Posts a comment to the pull request.
         """
         endpoint = f"issues/{self.pr_num}/comments"
         return self.api.post(endpoint, {"body": message})
 
-    def get_pr_status(self, number: int) -> requests.Response:
+    def _fetch_and_validate_lgtm_votes(self):
         """
-        Fetches the status of a pull request.
+        Fetches LGTM votes and validates them.
+
+        Returns the number of valid votes and a dictionary of users with their
+        permissions.
         """
-        if self._pr_status:
-            return self._pr_status
-
-        endpoint = f"pulls/{number}"
-        self._pr_status = self.api.get(endpoint)
-        return self._pr_status
-
-    def check_status(self, num: int, status: str) -> bool:
-        pr_status = self.get_pr_status(num)
-        if pr_status.status_code != 200:
-            print(
-                f"⚠️ Unable to fetch PR status for PR #{num}: {pr_status.text}",
-                file=sys.stderr,
+        endpoint = f"issues/{self.pr_num}/comments"
+        response = self.api.get(endpoint)
+        if response.status_code != 200:
+            error_message = COMMENTS_FETCH_ERROR.format(
+                status_code=response.status_code,
+                response_text=response.text,
+                pr_num=self.pr_num,
             )
+            print(error_message, file=sys.stderr)
             sys.exit(1)
-        return pr_status.json().get("state") == status
 
-    def assign_unassign(self, command: str, users: List[str]) -> requests.Response:
-        """
-        Assigns or unassigns users for review.
-        """
-        endpoint = f"pulls/{self.pr_num}/requested_reviewers"
-        users = [user.lstrip("@") for user in users]
-        data = {"reviewers": users}
-        method = self.api.post if command == "assign" else self.api.delete
-        response = method(endpoint, data)
-        if response and response.status_code in [200, 201, 204]:
-            self.post_comment(
-                f"✅ {command.capitalize()}ed <b>{', '.join(users)}</b> for reviews."
-            )
-        return response
+        comments = response.json()
+        lgtm_users: Dict[str, Optional[str]] = {}
+        for comment in comments:
+            body = comment.get("body", "")
+            if re.search(r"^/lgtm\b", body, re.IGNORECASE):
+                user = comment["user"]["login"]
+                if user == self.pr_sender:
+                    msg = SELF_APPROVAL_ERROR.format(
+                        user=user, comment_url=comment["html_url"]
+                    )
+                    self._post_comment(msg)
+                    print(msg, file=sys.stderr)
+                    sys.exit(1)
+                lgtm_users[user] = None
 
-    def label(self, labels: List[str]) -> requests.Response:
-        """
-        Adds labels to the PR.
-        """
-        endpoint = f"issues/{self.pr_num}/labels"
-        data = {"labels": labels}
-        self.post_comment(f"✅ Added labels: <b>{', '.join(labels)}</b>.")
-        return self.api.post(endpoint, data)
+        valid_votes = 0
+        for user in lgtm_users:
+            permission, is_valid = self._check_membership(user)
+            lgtm_users[user] = permission
+            if is_valid:
+                valid_votes += 1
 
-    def unlabel(self, labels: List[str]) -> requests.Response:
-        """
-        Removes labels from the PR.
-        """
-        for label in labels:
-            self.api.delete(f"issues/{self.pr_num}/labels/{label}")
-        self.post_comment(f"✅ Removed labels: <b>{', '.join(labels)}</b>.")
-        return requests.Response()
+        return valid_votes, lgtm_users
 
-    def check_membership(self, user: str) -> Tuple[Optional[str], bool]:
+    def _check_membership(self, user: str) -> Tuple[Optional[str], bool]:
         """
         Checks if a user has the required permissions.
         """
         endpoint = f"collaborators/{user}/permission"
         response = self.api.get(endpoint)
+        if response.status_code == 404:  # Handle 404 for missing collaborator
+            return None, False
         if response.status_code != 200:
             print(
                 PERMISSION_CHECK_ERROR.format(
@@ -180,9 +172,129 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
         return permission, permission in self.lgtm_permissions
 
+    def _get_pr_commits(self, pr_num: int) -> List[Dict]:
+        """
+        Fetches all commits from a pull request.
+        """
+        endpoint = f"pulls/{pr_num}/commits"
+        response = self.api.get(endpoint)
+        if response.status_code != 200:
+            return []
+        return response.json()
+
+    def _post_lgtm_breakdown(
+        self, valid_votes: int, lgtm_users: Dict[str, Optional[str]]
+    ) -> None:
+        """
+        Posts a detailed breakdown of LGTM votes.
+        """
+        users_table = ""
+        for user, permission in lgtm_users.items():
+            is_valid = permission in self.lgtm_permissions
+            valid_mark = "✅" if is_valid else "❌"
+            users_table += f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"
+
+        message = LGTM_BREAKDOWN_TEMPLATE.format(
+            valid_votes=valid_votes,
+            threshold=self.lgtm_threshold,
+            users_table=users_table,
+        )
+        self._post_comment(message)
+
+    def _get_branch_sha(self, branch: str) -> Optional[str]:
+        """
+        Gets the SHA of the latest commit on a branch.
+        """
+        endpoint = f"git/refs/heads/{branch}"
+        response = self.api.get(endpoint)
+        if response.status_code != 200:
+            return None
+        return response.json().get("object", {}).get("sha")
+
+    def _create_branch(self, branch_name: str, base_sha: str) -> bool:
+        """
+        Creates a new branch from the specified SHA.
+        """
+        endpoint = "git/refs"
+        data = {"ref": f"refs/heads/{branch_name}", "sha": base_sha}
+        response = self.api.post(endpoint, data)
+
+        return response.status_code == 201
+
+    def _get_pr_status(self, number: int) -> requests.Response:
+        """
+        Fetches the status of a pull request.
+        """
+        if self._pr_status:
+            return self._pr_status
+
+        endpoint = f"pulls/{number}"
+        self._pr_status = self.api.get(endpoint)
+        return self._pr_status
+
+    def check_status(self, num: int, status: str) -> bool:
+        pr_status = self._get_pr_status(num)
+        if pr_status.status_code != 200:
+            print(
+                f"⚠️ Unable to fetch PR status for PR #{num}: {pr_status.text}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return pr_status.json().get("state") == status
+
+    def assign_unassign(self, command: str, users: List[str]) -> requests.Response:
+        """
+        Assigns or unassigns users for review.
+        """
+        endpoint = f"pulls/{self.pr_num}/requested_reviewers"
+        users = [user.lstrip("@") for user in users]
+        data = {"reviewers": users}
+        method = self.api.post if command == "assign" else self.api.delete
+        response = method(endpoint, data)
+        if response and response.status_code in [200, 201, 204]:
+            self._post_comment(
+                f"✅ {command.capitalize()}ed <b>{', '.join(users)}</b> for reviews."
+            )
+        return response
+
+    def label(self, labels: List[str]) -> requests.Response:
+        """
+        Adds labels to the PR.
+        """
+        endpoint = f"issues/{self.pr_num}/labels"
+        data = {"labels": labels}
+        self._post_comment(f"✅ Added labels: <b>{', '.join(labels)}</b>.")
+        return self.api.post(endpoint, data)
+
+    def unlabel(self, labels: List[str]) -> requests.Response:
+        """
+        Removes labels from the PR.
+        """
+        for label in labels:
+            self.api.delete(f"issues/{self.pr_num}/labels/{label}")
+        self._post_comment(f"✅ Removed labels: <b>{', '.join(labels)}</b>.")
+        return requests.Response()
+
+    def cherry_pick(self, values: List[str]) -> requests.Response:
+        """
+        Posts a comment indicating the PR will be cherry-picked to the specified branch.
+        """
+        if len(values) != 1:
+            print(
+                f"⚠️ Invalid number of arguments for cherry-pick: {values}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        target_branch = values[0]
+        self._post_comment(
+            f"✅ We will cherry-pick this PR to the branch `{target_branch}` upon merge."
+        )
+        return requests.Response()
+
     def rebase(self) -> requests.Response:
         endpoint = f"pulls/{self.pr_num}/update-branch"
-        self.post_comment("✅ Rebased the PR branch on the base branch.")
+        self._post_comment("✅ Rebased the PR branch on the base branch.")
         return self.api.put(endpoint, {})
 
     def lgtm(self, send_comment: bool = True) -> int:
@@ -210,14 +322,14 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
                     msg = SELF_APPROVAL_ERROR.format(
                         user=user, comment_url=comment["html_url"]
                     )
-                    self.post_comment(msg)
+                    self._post_comment(msg)
                     print(msg, file=sys.stderr)
                     sys.exit(1)
                 lgtm_users[user] = None
 
         valid_votes = 0
         for user in lgtm_users:
-            permission, is_valid = self.check_membership(user)
+            permission, is_valid = self._check_membership(user)
             lgtm_users[user] = permission
             if is_valid:
                 valid_votes += 1
@@ -246,46 +358,27 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         )
         print(message)
         if send_comment:
-            self.post_lgtm_breakdown(valid_votes, lgtm_users)
+            self._post_lgtm_breakdown(valid_votes, lgtm_users)
         sys.exit(0)
-
-    def post_lgtm_breakdown(
-        self, valid_votes: int, lgtm_users: Dict[str, Optional[str]]
-    ) -> None:
-        """
-        Posts a detailed breakdown of LGTM votes.
-        """
-        users_table = ""
-        for user, permission in lgtm_users.items():
-            is_valid = permission in self.lgtm_permissions
-            valid_mark = "✅" if is_valid else "❌"
-            users_table += f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"
-
-        message = LGTM_BREAKDOWN_TEMPLATE.format(
-            valid_votes=valid_votes,
-            threshold=self.lgtm_threshold,
-            users_table=users_table,
-        )
-        self.post_comment(message)
 
     def merge_pr(self) -> bool:
         """
-        Merges the PR if it has enough LGTM approvals.
+        Merges the PR if it has enough LGTM approvals and performs cherry-picks.
         """
         # Check if the user has sufficient permissions to merge
-        permission, is_valid = self.check_membership(self.comment_sender)
+        permission, is_valid = self._check_membership(self.comment_sender)
         if not is_valid:
             msg = INSUFFICIENT_PERMISSIONS.format(
                 user=self.comment_sender,
                 permission=permission,
                 required_permissions=", ".join(self.lgtm_permissions),
             )
-            self.post_comment(msg)
+            self._post_comment(msg)
             print(msg, file=sys.stderr)
             sys.exit(1)
 
         # Fetch LGTM votes and check if the threshold is met
-        valid_votes, lgtm_users = self.fetch_and_validate_lgtm_votes()
+        valid_votes, lgtm_users = self._fetch_and_validate_lgtm_votes()
 
         if valid_votes >= self.lgtm_threshold:
             endpoint = f"pulls/{self.pr_num}/merge"
@@ -296,6 +389,28 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             }
             response = self.api.put(endpoint, data)
             if response and response.status_code == 200:
+                # Fetch all comments to find cherry-pick commands
+                comments_response = self.api.get(f"issues/{self.pr_num}/comments")
+                if comments_response.status_code != 200:
+                    print(
+                        f"⚠️ Unable to fetch comments for PR #{self.pr_num}: {comments_response.text}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+
+                comments = comments_response.json()
+                cherry_pick_branches = set()
+                for comment in comments:
+                    body = comment.get("body", "")
+                    match = re.match(r"^/cherry-pick\s+(\S+)", body, re.IGNORECASE)
+                    if match:
+                        cherry_pick_branches.add(match.group(1))
+
+                # Perform cherry-picks to the specified branches
+                for target_branch in cherry_pick_branches:
+                    if not self._perform_cherry_pick(target_branch):
+                        return False
+
                 # Create the users table for the success message
                 users_table = ""
                 for user, permission in lgtm_users.items():
@@ -312,10 +427,10 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
                     lgtm_threshold=self.lgtm_threshold,
                     users_table=users_table,
                 )
-                self.post_comment(success_message)
+                self._post_comment(success_message)
                 return True
 
-            self.post_comment(
+            self._post_comment(
                 MERGE_FAILED.format(
                     pr_num=self.pr_num,
                     status_code=response.status_code,
@@ -324,54 +439,137 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             )
             return False
 
-        self.post_comment(
+        self._post_comment(
             NOT_ENOUGH_LGTM.format(
                 valid_votes=valid_votes, threshold=self.lgtm_threshold
             ),
         )
         return False
 
-    def fetch_and_validate_lgtm_votes(self):
+    def _perform_cherry_pick(self, target_branch: str) -> bool:
         """
-        Fetches LGTM votes and validates them.
-
-        Returns the number of valid votes and a dictionary of users with their
-        permissions.
+        Performs cherry-pick operation to the specified branch.
         """
-        endpoint = f"issues/{self.pr_num}/comments"
-        response = self.api.get(endpoint)
-        if response.status_code != 200:
-            error_message = COMMENTS_FETCH_ERROR.format(
-                status_code=response.status_code,
-                response_text=response.text,
-                pr_num=self.pr_num,
+        # Get all PR commits in chronological order
+        commits = self._get_pr_commits(self.pr_num)
+        if not commits:
+            self._post_comment(
+                CHERRY_PICK_ERROR.format(
+                    source_pr=self.pr_num,
+                    target_branch=target_branch,
+                    status_code="404",
+                    error_text="Could not fetch PR commits",
+                )
             )
-            print(error_message, file=sys.stderr)
-            sys.exit(1)
+            return False
 
-        comments = response.json()
-        lgtm_users: Dict[str, Optional[str]] = {}
-        for comment in comments:
-            body = comment.get("body", "")
-            if re.search(r"^/lgtm\b", body, re.IGNORECASE):
-                user = comment["user"]["login"]
-                if user == self.pr_sender:
-                    msg = SELF_APPROVAL_ERROR.format(
-                        user=user, comment_url=comment["html_url"]
+        # Check if target branch exists
+        current_sha = self._get_branch_sha(target_branch)
+        if not current_sha:
+            # Handle new branch creation
+            pr_info = self._get_pr_status(self.pr_num).json()
+            base_branch = pr_info["base"]["ref"]
+            base_sha = self._get_branch_sha(base_branch)
+
+            if not base_sha:
+                self._post_comment(
+                    CHERRY_PICK_ERROR.format(
+                        source_pr=self.pr_num,
+                        target_branch=target_branch,
+                        status_code="404",
+                        error_text=f"Could not find base branch: {base_branch}",
                     )
-                    self.post_comment(msg)
-                    print(msg, file=sys.stderr)
-                    sys.exit(1)
-                lgtm_users[user] = None
+                )
+                return False
 
-        valid_votes = 0
-        for user in lgtm_users:
-            permission, is_valid = self.check_membership(user)
-            lgtm_users[user] = permission
-            if is_valid:
-                valid_votes += 1
+            if not self._create_branch(target_branch, base_sha):
+                self._post_comment(
+                    CHERRY_PICK_ERROR.format(
+                        source_pr=self.pr_num,
+                        target_branch=target_branch,
+                        status_code="422",
+                        error_text=f"Could not create branch: {target_branch}",
+                    )
+                )
+                return False
+            current_sha = base_sha
 
-        return valid_votes, lgtm_users
+        # Cherry-pick each commit in sequence
+        for i, commit in enumerate(commits, 1):
+            endpoint = "merges"
+            commit_sha = commit["sha"]
+            commit_msg = commit.get("commit", {}).get("message", "")
+
+            data = {
+                "base": target_branch,
+                "head": commit_sha,
+                "commit_message": (
+                    f"Cherry-pick: ({i}/{len(commits)}) from PR #{self.pr_num} to {target_branch}\n\n"
+                    f"Original commit: {commit_msg}\n"
+                    f"Cherry-picked by @{self.comment_sender}"
+                ),
+            }
+
+            response = self.api.post(endpoint, data)
+
+            if response.status_code == 409:
+                # Merge conflict - requires manual intervention
+                self._handle_merge_conflict(target_branch, commit_sha, i, len(commits))
+                return False  # Indicate cherry-pick was not completed
+
+            if response.status_code != 201:
+                self._post_comment(
+                    CHERRY_PICK_ERROR.format(
+                        source_pr=self.pr_num,
+                        target_branch=target_branch,
+                        status_code=response.status_code,
+                        error_text=response.text,
+                    )
+                )
+                return False  # Indicate cherry-pick was not completed
+
+            # Store new SHA but keep target_branch name unchanged
+            current_sha = response.json()["sha"]
+
+        # All commits successfully cherry-picked
+        self._post_comment(
+            CHERRY_PICK_SUCCESS.format(
+                source_pr=self.pr_num,
+                target_branch=target_branch,
+                user=self.comment_sender,
+                commit_sha=current_sha,  # Use final SHA in success message
+            )
+        )
+        return True
+
+    def _handle_merge_conflict(
+        self,
+        target_branch: str,
+        commit_sha: str,
+        current_commit: int,
+        total_commits: int,
+    ) -> None:
+        """
+        Handles merge conflicts during cherry-pick operation.
+
+        Posts detailed information and instructions for manual resolution.
+        """
+        conflict_message = f"""🚨 Merge conflict detected while cherry-picking PR #{self.pr_num} to {target_branch}
+• Progress: {current_commit}/{total_commits} commits
+• Conflicting commit: {commit_sha}
+
+To resolve this conflict:
+1. Create a new branch from {target_branch}
+2. Cherry-pick the commits manually using:
+```
+git checkout -b resolve-cherry-pick-{self.pr_num} {target_branch}
+git cherry-pick {commit_sha}
+```
+3. Resolve the conflicts
+4. Create a new PR with your changes
+
+Need assistance? Please contact the repository maintainers."""
+        self._post_comment(conflict_message)
 
 
 def parse_args() -> argparse.Namespace:
@@ -500,7 +698,7 @@ def main():
     pr_handler = PRHandler(api, args)
 
     match = re.match(
-        r"^/(rebase|merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
+        r"^/(rebase|cherry-pick|merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
         args.trigger_comment,
     )
     if not match:
@@ -527,11 +725,13 @@ def main():
     elif command == "rebase":
         response = pr_handler.rebase()
     elif command == "help":
-        response = pr_handler.post_comment(HELP_TEXT.strip())
+        response = pr_handler._post_comment(HELP_TEXT.strip())
     elif command == "lgtm":
         pr_handler.lgtm()
     elif command == "merge":
         pr_handler.merge_pr()
+    elif command == "cherry-pick":
+        pr_handler.cherry_pick(values)
 
     if response:
         if not pr_handler.check_response(response):

@@ -16,7 +16,7 @@ The following commands are supported:
 | `/unlabel bug feature`  | Removes labels from the PR                                       |
 | `/lgtm`                 | Approves the PR if at least 1 org members have commented `/lgtm` |
 | `/merge`                | Merges the PR if it has enough `/lgtm` approvals                 |
-| `/rebase`                   | Rebases the PR branch on the base branch                                        |
+| `/rebase`               | Rebases the PR branch on the base branch                         |
 | `/help`                 | Shows this help message                                          |
 
 ## Usage

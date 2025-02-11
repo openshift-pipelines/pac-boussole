@@ -5,7 +5,7 @@ metadata:
   name: prow-commands
   annotations:
     pipelinesascode.tekton.dev/pipeline: ".tekton/pipelines/in-repo.yaml"
-    pipelinesascode.tekton.dev/on-comment: "^/(rebase|merge|help|lgtm|(assign|unassign|label|unlabel)[ ].*)$"
+    pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|merge|lgtm|(cherry-pick|assign|unassign|label|unlabel) )"
     pipelinesascode.tekton.dev/max-keep-runs: "2"
 spec:
   params:
@@ -14,7 +14,7 @@ spec:
     - name: revision
       value: "{{revision}}"
     - name: trigger_comment
-      value: |-
+      value: |
         {{ trigger_comment }}
     - name: repo_owner
       value: "{{ repo_owner }}"

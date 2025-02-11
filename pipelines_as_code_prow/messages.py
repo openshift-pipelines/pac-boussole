@@ -142,3 +142,32 @@ Unable to merge PR #{pr_num}:
 
 Please resolve any issues and try again.
 """
+
+# Add new error message template for cherry-pick
+CHERRY_PICK_ERROR = """
+### ❌ Cherry Pick Failed
+
+Failed to cherry-pick changes from PR #{source_pr} to branch `{target_branch}`:
+* Status Code: `{status_code}`
+* Error: `{error_text}`
+
+**Possible causes:**
+* Merge conflicts
+* Branch protection rules
+* Invalid branch name
+* Missing permissions
+
+Please resolve any issues and try again.
+"""
+
+CHERRY_PICK_SUCCESS = """
+### ✅ Cherry Pick Successful
+
+Successfully cherry-picked changes from PR #{source_pr} to branch `{target_branch}`.
+
+**Details:**
+* Source PR: #{source_pr}
+* Target Branch: `{target_branch}`
+* Cherry-picked by: @{user}
+* New commit SHA: `{commit_sha}`
+"""

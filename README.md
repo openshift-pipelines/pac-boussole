@@ -8,16 +8,22 @@ Pipelines As Code Prow let you trigger Tekton Pipelines based on GitHub comments
 
 The following commands are supported:
 
-| Command                 | Description                                                      |
-|-------------------------|------------------------------------------------------------------|
-| `/assign user1 user2`   | Assigns users for review to the PR                               |
-| `/unassign user1 user2` | Removes assigned users                                           |
-| `/label bug feature`    | Adds labels to the PR                                            |
-| `/unlabel bug feature`  | Removes labels from the PR                                       |
-| `/lgtm`                 | Approves the PR if at least 1 org members have commented `/lgtm` |
-| `/merge`                | Merges the PR if it has enough `/lgtm` approvals                 |
-| `/rebase`               | Rebases the PR branch on the base branch                         |
-| `/help`                 | Shows this help message                                          |
+| Command                      | Description                                                      |
+|------------------------------|------------------------------------------------------------------|
+| `/assign user1 user2`        | Assigns users for review to the PR                               |
+| `/unassign user1 user2`      | Removes assigned users                                           |
+| `/label bug feature`         | Adds labels to the PR                                            |
+| `/unlabel bug feature`       | Removes labels from the PR                                       |
+| `/cherry-pick target-branch` | Cherry-picks the PR changes to the target branch on Merges       |
+| `/lgtm`                      | Approves the PR if at least 1 org members have commented `/lgtm` |
+| `/merge`                     | Merges the PR if it has enough `/lgtm` approvals                 |
+| `/rebase`                    | Rebases the PR branch on the base branch                         |
+| `/help`                      | Shows this help message                                          |
+
+> [!IMPORTANT]
+>
+> * Please note that multiple comment on the same line are not supported, you need to issue one command per comment.
+> * The command needs to be located at the beginning of the comment, if there is any other text before the command it will be ignored.
 
 ## Usage
 
@@ -32,12 +38,12 @@ metadata:
   name: prow-commands
   annotations:
     pipelinesascode.tekton.dev/pipeline: "https://raw.githubusercontent.com/openshift-pipelines/pipelines-as-code-prow/refs/heads/main/pipeline-prow.yaml"
-    pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|merge|lgtm|(assign|unassign|label|unlabel)[ ].*)$"
+    pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|merge|lgtm|(cherry-pick|assign|unassign|label|unlabel)[ ].*)$"
     pipelinesascode.tekton.dev/max-keep-runs: "2"
 spec:
   params:
     - name: trigger_comment
-      value: |- # make sure to use |- or it will fail with a simple |
+      value: |
         {{ trigger_comment }}
     - name: repo_owner
       value: "{{ repo_owner }}"

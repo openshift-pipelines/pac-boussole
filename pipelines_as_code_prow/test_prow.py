@@ -60,7 +60,7 @@ def pr_handler(mock_api, mock_args):
 
 
 def test_post_comment(pr_handler, mock_api):
-    pr_handler.post_comment("Test comment")
+    pr_handler._post_comment("Test comment")
     mock_api.post.assert_called_once_with(
         "issues/123/comments", {"body": "Test comment"}
     )
@@ -94,7 +94,7 @@ def test_unlabel(pr_handler, mock_api):
 def test_check_membership(pr_handler, mock_api):
     mock_api.get.return_value.status_code = 200
     mock_api.get.return_value.json.return_value = {"permission": "write"}
-    permission, is_valid = pr_handler.check_membership("reviewer")
+    permission, is_valid = pr_handler._check_membership("reviewer")
     assert permission == "write"
     assert is_valid is True
 
@@ -148,7 +148,7 @@ def test_lgtm_comments_fetch_error(pr_handler, mock_api):
 
 def test_check_membership_invalid_response(pr_handler, mock_api):
     mock_api.get.return_value.status_code = 404
-    permission, is_valid = pr_handler.check_membership("nonexistent_user")
+    permission, is_valid = pr_handler._check_membership("nonexistent_user")
     assert permission is None
     assert is_valid is False
 
@@ -217,7 +217,7 @@ def test_merge_pr_failure(pr_handler, mock_api):
 
 def test_post_lgtm_breakdown(pr_handler, mock_api):
     lgtm_users = {"user1": "write", "user2": "read", "user3": "admin"}
-    pr_handler.post_lgtm_breakdown(2, lgtm_users)
+    pr_handler._post_lgtm_breakdown(2, lgtm_users)
 
     # Verify that post_comment was called with the correct breakdown table
     mock_api.post.assert_called()

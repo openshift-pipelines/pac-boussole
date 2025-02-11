@@ -51,7 +51,7 @@ spec:
         - name: GH_COMMENT_SENDER
           value: $(params.comment_sender)
         - name: PAC_TRIGGER_COMMENT
-          value: |
+          value: |-
             $(params.trigger_comment)
         - name: GH_MERGE_METHOD
           value: $(params.merge_method)

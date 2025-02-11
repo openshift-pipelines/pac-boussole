@@ -12,14 +12,19 @@ import argparse
 import os
 import re
 import sys
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from enum import Enum, auto
+from functools import cache, lru_cache
+from typing import Any, Dict, List, Optional, Tuple
 
-import requests  # type: ignore
+import requests
+from requests.exceptions import RequestException
 
-LGTM_THRESHOLD = int(os.getenv("PAC_LGTM_THRESHOLD", "1"))
 
-# Error and status message templates
-PERMISSION_CHECK_ERROR = """
+# Message templates moved to a dedicated class
+@dataclass(frozen=True)
+class Templates:
+    PERMISSION_CHECK_ERROR = """
 ### ⚠️ Permission Check Failed
 
 Unable to verify permissions for user **@{user}**
@@ -32,7 +37,7 @@ Unable to verify permissions for user **@{user}**
 Please check user permissions and try again.
 """
 
-PERMISSION_DATA_MISSING = """
+    PERMISSION_DATA_MISSING = """
 ### ❌ Permission Data Missing
 
 Failed to retrieve permission level for user **@{user}**
@@ -41,7 +46,7 @@ Failed to retrieve permission level for user **@{user}**
 * Please contact repository administrators for assistance
 """
 
-COMMENTS_FETCH_ERROR = """
+    COMMENTS_FETCH_ERROR = """
 ### 🚫 Failed to Retrieve PR Comments
 
 Unable to process LGTM votes due to API error:
@@ -54,7 +59,7 @@ Unable to process LGTM votes due to API error:
 3. Ensure the PR hasn't been closed or deleted
 """
 
-SELF_APPROVAL_ERROR = """
+    SELF_APPROVAL_ERROR = """
 ### ⚠️ Invalid LGTM Vote
 
 * User **@{user}** attempted to approve their own PR
@@ -64,7 +69,7 @@ SELF_APPROVAL_ERROR = """
 Please wait for reviews from other team members.
 """
 
-INSUFFICIENT_PERMISSIONS = """
+    INSUFFICIENT_PERMISSIONS = """
 ### 🔒 Insufficient Permissions
 
 * User **@{user}** does not have permission to merge
@@ -74,7 +79,7 @@ INSUFFICIENT_PERMISSIONS = """
 Please request assistance from a repository maintainer.
 """
 
-NOT_ENOUGH_LGTM = """
+    NOT_ENOUGH_LGTM = """
 ### ❌ Insufficient Approvals
 
 * Current valid LGTM votes: **{valid_votes}**
@@ -83,7 +88,7 @@ NOT_ENOUGH_LGTM = """
 Please obtain additional approvals before merging.
 """
 
-MERGE_FAILED = """
+    MERGE_FAILED = """
 ### ❌ Merge Failed
 
 Unable to merge PR #{pr_num}:
@@ -98,21 +103,20 @@ Unable to merge PR #{pr_num}:
 Please resolve any issues and try again.
 """
 
-HELP_TEXT = f"""
-### 🤖 Available Commands
-| Command                     | Description                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------- |
-| `/assign user1 user2`       | Assigns users for review to the PR                                              |
-| `/unassign user1 user2`     | Removes assigned users                                                          |
-| `/label bug feature`        | Adds labels to the PR                                                           |
-| `/unlabel bug feature`      | Removes labels from the PR                                                      |
-| `/lgtm`                     | Approves the PR if at least {LGTM_THRESHOLD} org members have commented `/lgtm` |
-| `/merge`                    | Merges the PR if it has enough `/lgtm` approvals                                |
-| `/rebase`                   | Rebases the PR branch on the base branch                                        |
-| `/help`                     | Shows this help message                                                         |
+    SUCCESS_MERGED = """
+### ✅ PR Successfully Merged
+
+* Merge method: `{merge_method}`
+* Merged by: **@{comment_sender}**
+* Total approvals: **{valid_votes}/{lgtm_threshold}**
+
+**Approvals Summary:**
+| Reviewer | Permission | Status |
+|----------|------------|--------|
+{users_table}
 """
 
-APPROVED_TEMPLATE = """
+    APPROVED_TEMPLATE = """
 ### ✅ Pull Request Approved
 
 **Approval Status:**
@@ -132,7 +136,7 @@ APPROVED_TEMPLATE = """
 Thank you for your contributions! 🎉
 """
 
-LGTM_BREAKDOWN_TEMPLATE = """
+    LGTM_BREAKDOWN = """
 ### LGTM Vote Breakdown
 
 * **Current valid votes:** {valid_votes}/{threshold}
@@ -142,525 +146,523 @@ LGTM_BREAKDOWN_TEMPLATE = """
 | Reviewer | Permission | Valid Vote |
 |----------|------------|------------|
 {users_table}
-
 """
 
-SUCCESS_MERGED = """
-### ✅ PR Successfully Merged
-
-* Merge method: `{merge_method}`
-* Merged by: **@{comment_sender}**
-* Total approvals: **{valid_votes}/{lgtm_threshold}**
-
-**Approvals Summary:**
-| Reviewer | Permission | Status |
-|----------|------------|--------|
-{users_table}
+    HELP = """
+### 🤖 Available Commands
+| Command                     | Description                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `/assign user1 user2`       | Assigns users for review to the PR                                              |
+| `/unassign user1 user2`     | Removes assigned users                                                          |
+| `/label bug feature`        | Adds labels to the PR                                                           |
+| `/unlabel bug feature`      | Removes labels from the PR                                                      |
+| `/lgtm`                     | Approves the PR if at least {threshold} org members have commented `/lgtm`      |
+| `/merge`                    | Merges the PR if it has enough `/lgtm` approvals                               |
+| `/rebase`                   | Rebases the PR branch on the base branch                                        |
+| `/help`                     | Shows this help message                                                         |
 """
+
+
+class Config:
+    """
+    Configuration settings with environment variable fallbacks.
+    """
+
+    LGTM_THRESHOLD = int(os.getenv("PAC_LGTM_THRESHOLD", "1"))
+    DEFAULT_TIMEOUT = 10
+    API_VERSION = "application/vnd.github.v3+json"
+
+
+class CommandType(Enum):
+    """
+    Enumeration of supported PR commands.
+    """
+
+    ASSIGN = auto()
+    UNASSIGN = auto()
+    LABEL = auto()
+    UNLABEL = auto()
+    LGTM = auto()
+    MERGE = auto()
+    REBASE = auto()
+    HELP = auto()
+
+    @classmethod
+    def from_str(cls, value: str) -> Optional["CommandType"]:
+        try:
+            return cls[value.upper()]
+        except KeyError:
+            return None
+
+
+@dataclass(frozen=True)
+class PRCommand:
+    """
+    Represents a parsed PR command with its arguments.
+    """
+
+    type: CommandType
+    values: List[str]
+
+    @classmethod
+    def parse(cls, comment: str) -> Optional["PRCommand"]:
+        match = re.match(r"^/(\w+)\s*(.*)", comment)
+        if not match:
+            return None
+
+        command, values = match.groups()
+        command_type = CommandType.from_str(command)
+        if not command_type:
+            return None
+
+        return cls(command_type, values.split())
 
 
 class GitHubAPI:
     """
-    Wrapper for GitHub API calls to make them mockable.
+    Enhanced GitHub API client with error handling and caching.
     """
 
-    timeout: int = 10
-
-    def __init__(self, base_url: str, headers: Dict[str, str]):
+    def __init__(self, base_url: str, token: str):
         self.base_url = base_url
-        self.headers = headers
+        self.session = requests.Session()
+        self.session.headers.update(
+            {"Authorization": f"Bearer {token}", "Accept": Config.API_VERSION}
+        )
 
-    def get(self, endpoint: str) -> requests.Response:
+    def _make_request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
         url = f"{self.base_url}/{endpoint}"
-        return requests.get(url, headers=self.headers, timeout=self.timeout)
+        try:
+            response = self.session.request(
+                method, url, timeout=Config.DEFAULT_TIMEOUT, **kwargs
+            )
+            response.raise_for_status()
+            return response
+        except RequestException as e:
+            print(f"API request failed: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    @lru_cache(maxsize=100)
+    def get(self, endpoint: str) -> requests.Response:
+        return self._make_request("GET", endpoint)
 
     def post(self, endpoint: str, data: Dict) -> requests.Response:
-        url = f"{self.base_url}/{endpoint}"
-        return requests.post(url, json=data, headers=self.headers, timeout=self.timeout)
+        return self._make_request("POST", endpoint, json=data)
 
     def put(self, endpoint: str, data: Dict) -> requests.Response:
-        url = f"{self.base_url}/{endpoint}"
-        return requests.put(url, json=data, headers=self.headers, timeout=self.timeout)
+        return self._make_request("PUT", endpoint, json=data)
 
     def delete(self, endpoint: str, data: Optional[Dict] = None) -> requests.Response:
-        url = f"{self.base_url}/{endpoint}"
-        return requests.delete(
-            url, json=data, headers=self.headers, timeout=self.timeout
+        return self._make_request("DELETE", endpoint, json=data if data else {})
+
+
+@dataclass(frozen=True)
+class PRContext:
+    """
+    Immutable context object containing PR-related data.
+    """
+
+    pr_num: int
+    pr_sender: str
+    comment_sender: str
+    lgtm_threshold: int
+    lgtm_permissions: set[str]
+    lgtm_review_event: str
+    merge_method: str
+
+    @classmethod
+    def from_args(cls, args: argparse.Namespace) -> "PRContext":
+        return cls(
+            pr_num=int(args.pr_num),
+            pr_sender=args.pr_sender,
+            comment_sender=args.comment_sender,
+            lgtm_threshold=args.lgtm_threshold,
+            lgtm_permissions=set(args.lgtm_permissions.split(",")),
+            lgtm_review_event=args.lgtm_review_event,
+            merge_method=args.merge_method,
         )
 
 
-class PRHandler:  # pylint: disable=too-many-instance-attributes
+class UserPermissions:
     """
-    Handles PR-related operations.
+    Handles user permission checking and caching.
     """
 
-    def __init__(
-        self,
-        api: GitHubAPI,
-        args: argparse.Namespace,
-    ):
+    def __init__(self, api: GitHubAPI, required_permissions: set[str]):
         self.api = api
-        self.pr_num = args.pr_num
-        self.pr_sender = args.pr_sender
-        self.comment_sender = args.comment_sender
-        self.lgtm_threshold = args.lgtm_threshold
-        self.lgtm_permissions = args.lgtm_permissions.split(",")
-        self.lgtm_review_event = args.lgtm_review_event
-        self.merge_method = args.merge_method
+        self.required_permissions = required_permissions
+        self._cache: Dict[str, Optional[str]] = {}
 
-        self._pr_status = None
-
-    def check_response(self, resp: requests.Response) -> bool:
-        if resp.status_code > 200 and resp.status_code < 300:
-            return True
-        print(
-            f"Error while executing the command: status: {resp.status_code} {resp.text}",
-            file=sys.stderr,
-        )
-        return False
-
-    def post_comment(self, message: str) -> requests.Response:
-        """
-        Posts a comment to the pull request.
-        """
-        endpoint = f"issues/{self.pr_num}/comments"
-        return self.api.post(endpoint, {"body": message})
-
-    def get_pr_status(self, number: int) -> requests.Response:
-        """
-        Fetches the status of a pull request.
-        """
-        if self._pr_status:
-            return self._pr_status
-
-        endpoint = f"pulls/{number}"
-        self._pr_status = self.api.get(endpoint)
-        return self._pr_status
-
-    def check_status(self, num: int, status: str) -> bool:
-        pr_status = self.get_pr_status(num)
-        if pr_status.status_code != 200:
-            print(
-                f"⚠️ Unable to fetch PR status for PR #{num}: {pr_status.text}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        return pr_status.json().get("state") == status
-
-    def assign_unassign(self, command: str, users: List[str]) -> requests.Response:
-        """
-        Assigns or unassigns users for review.
-        """
-        endpoint = f"pulls/{self.pr_num}/requested_reviewers"
-        users = [user.lstrip("@") for user in users]
-        data = {"reviewers": users}
-        method = self.api.post if command == "assign" else self.api.delete
-        response = method(endpoint, data)
-        if response and response.status_code in [200, 201, 204]:
-            self.post_comment(
-                f"✅ {command.capitalize()}ed <b>{', '.join(users)}</b> for reviews."
-            )
-        return response
-
-    def label(self, labels: List[str]) -> requests.Response:
-        """
-        Adds labels to the PR.
-        """
-        endpoint = f"issues/{self.pr_num}/labels"
-        data = {"labels": labels}
-        self.post_comment(f"✅ Added labels: <b>{', '.join(labels)}</b>.")
-        return self.api.post(endpoint, data)
-
-    def unlabel(self, labels: List[str]) -> requests.Response:
-        """
-        Removes labels from the PR.
-        """
-        for label in labels:
-            self.api.delete(f"issues/{self.pr_num}/labels/{label}")
-        self.post_comment(f"✅ Removed labels: <b>{', '.join(labels)}</b>.")
-        return requests.Response()
-
+    @lru_cache(maxsize=100)
     def check_membership(self, user: str) -> Tuple[Optional[str], bool]:
         """
-        Checks if a user has the required permissions.
+        Check if a user has required permissions.
         """
-        endpoint = f"collaborators/{user}/permission"
-        response = self.api.get(endpoint)
-        if response.status_code != 200:
-            print(
-                PERMISSION_CHECK_ERROR.format(
-                    user=user, status_code=response.status_code
-                ),
-                file=sys.stderr,
-            )
-            return None, False
+        if user in self._cache:
+            permission = self._cache[user]
+            return permission, permission in self.required_permissions
 
+        response = self.api.get(f"collaborators/{user}/permission")
         permission = response.json().get("permission")
-        if not permission:
-            print(
-                PERMISSION_DATA_MISSING.format(user=user),
-                file=sys.stderr,
-            )
-            return None, False
+        self._cache[user] = permission
 
-        return permission, permission in self.lgtm_permissions
+        return permission, permission in self.required_permissions
 
-    def rebase(self) -> requests.Response:
-        endpoint = f"pulls/{self.pr_num}/update-branch"
-        self.post_comment("✅ Rebased the PR branch on the base branch.")
-        return self.api.put(endpoint, {})
 
-    def lgtm(self, send_comment: bool = True) -> int:
+class PRHandler:
+    """
+    Handles PR operations with improved organization and error handling.
+    """
+
+    def __init__(self, api: GitHubAPI, context: PRContext):
+        self.api = api
+        self.context = context
+        self.permissions = UserPermissions(api, context.lgtm_permissions)
+        self._command_handlers = {
+            CommandType.ASSIGN: self._handle_assign,
+            CommandType.UNASSIGN: self._handle_unassign,
+            CommandType.LABEL: self._handle_label,
+            CommandType.UNLABEL: self._handle_unlabel,
+            CommandType.LGTM: self._handle_lgtm,
+            CommandType.MERGE: self._handle_merge,
+            CommandType.REBASE: self._handle_rebase,
+            CommandType.HELP: self._handle_help,
+        }
+
+    def handle_command(self, command: PRCommand) -> None:
         """
-        Processes LGTM votes and approves the PR if the threshold is met.
+        Entry point for handling all commands.
         """
-        endpoint = f"issues/{self.pr_num}/comments"
-        response = self.api.get(endpoint)
-        if response.status_code != 200:
-            error_message = COMMENTS_FETCH_ERROR.format(
-                status_code=response.status_code,
-                response_text=response.text,
-                pr_num=self.pr_num,
-            )
-            print(error_message, file=sys.stderr)
+        self._validate_pr_state()
+        handler = self._command_handlers.get(command.type)
+        if handler:
+            handler(command.values)
+        else:
+            print(f"Unknown command: {command.type}", file=sys.stderr)
             sys.exit(1)
 
-        comments = response.json()
-        lgtm_users: Dict[str, Optional[str]] = {}
-        for comment in comments:
-            body = comment.get("body", "")
-            if re.search(r"^/lgtm\b", body, re.IGNORECASE):
-                user = comment["user"]["login"]
-                if user == self.pr_sender:
-                    msg = SELF_APPROVAL_ERROR.format(
-                        user=user, comment_url=comment["html_url"]
-                    )
-                    self.post_comment(msg)
-                    print(msg, file=sys.stderr)
-                    sys.exit(1)
-                lgtm_users[user] = None
+    @cache
+    def get_pr_status(self) -> Dict[str, Any]:
+        """
+        Cached PR status retrieval.
+        """
+        response = self.api.get(f"pulls/{self.context.pr_num}")
+        return response.json()
 
-        valid_votes = 0
-        for user in lgtm_users:
-            permission, is_valid = self.check_membership(user)
-            lgtm_users[user] = permission
-            if is_valid:
-                valid_votes += 1
+    def _validate_pr_state(self) -> None:
+        """
+        Ensures PR is in valid state for operations.
+        """
+        status = self.get_pr_status()
+        if status.get("state") != "open":
+            print(f"⚠️ PR #{self.context.pr_num} is not open.", file=sys.stderr)
+            sys.exit(1)
 
-        if valid_votes >= self.lgtm_threshold:
-            users_table = ""
-            for user, permission in lgtm_users.items():
-                is_valid = permission in self.lgtm_permissions
-                valid_mark = "✅" if is_valid else "❌"
-                users_table += (
-                    f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"
+    def _post_comment(self, message: str) -> None:
+        """
+        Posts a comment to the PR.
+        """
+        self.api.post(f"issues/{self.context.pr_num}/comments", {"body": message})
+
+    def _handle_assign(self, users: List[str]) -> None:
+        """
+        Handles the assign command.
+        """
+        users = [user.lstrip("@") for user in users]
+        self.api.post(
+            f"pulls/{self.context.pr_num}/requested_reviewers", {"reviewers": users}
+        )
+        self._post_comment(f"✅ Assigned {', '.join(users)} for review.")
+
+    def _handle_unassign(self, users: List[str]) -> None:
+        """
+        Handles the unassign command.
+        """
+        users = [user.lstrip("@") for user in users]
+        self.api.delete(
+            f"pulls/{self.context.pr_num}/requested_reviewers", {"reviewers": users}
+        )
+        self._post_comment(f"✅ Unassigned {', '.join(users)} from review.")
+
+    def _handle_label(self, labels: List[str]) -> None:
+        """
+        Handles the label command.
+        """
+        self.api.post(f"issues/{self.context.pr_num}/labels", {"labels": labels})
+        self._post_comment(f"✅ Added labels: {', '.join(labels)}")
+
+    def _handle_unlabel(self, labels: List[str]) -> None:
+        """
+        Handles the unlabel command.
+        """
+        for label in labels:
+            self.api.delete(f"issues/{self.context.pr_num}/labels/{label}")
+        self._post_comment(f"✅ Removed labels: {', '.join(labels)}")
+
+    def _handle_rebase(self, _: List[str]) -> None:
+        """
+        Handles the rebase command.
+        """
+        self.api.put(f"pulls/{self.context.pr_num}/update-branch", {})
+        self._post_comment("✅ Rebased the PR branch on the base branch.")
+
+    def _handle_help(self, _: List[str]) -> None:
+        """
+        Handles the help command.
+        """
+        self._post_comment(Templates.HELP.format(threshold=self.context.lgtm_threshold))
+
+    def _handle_lgtm(self, _: List[str]) -> None:
+        """
+        Handles the LGTM command.
+        """
+        votes = self._collect_lgtm_votes()
+        if len(votes) >= self.context.lgtm_threshold:
+            self._approve_pr(votes)
+        else:
+            self._post_lgtm_breakdown(votes)
+
+    def _handle_merge(self, _: List[str]) -> None:
+        """
+        Handles the merge command.
+        """
+        self._validate_merger_permissions()
+        votes = self._collect_lgtm_votes()
+
+        if len(votes) >= self.context.lgtm_threshold:
+            self._merge_pr(votes)
+        else:
+            self._post_comment(
+                Templates.NOT_ENOUGH_LGTM.format(
+                    valid_votes=len(votes), threshold=self.context.lgtm_threshold
                 )
-            endpoint = f"pulls/{self.pr_num}/reviews"
-            body = APPROVED_TEMPLATE.format(
-                threshold=self.lgtm_threshold,
-                valid_votes=valid_votes,
-                users_table=users_table,
             )
-            data = {"event": self.lgtm_review_event, "body": body}
-            print("✅ PR approved with LGTM votes.")
-            self.api.post(endpoint, data)
-            return valid_votes
 
-        message = NOT_ENOUGH_LGTM.format(
-            valid_votes=valid_votes, threshold=self.lgtm_threshold
+    def _collect_lgtm_votes(self) -> Dict[str, str]:
+        """
+        Collects and validates LGTM votes.
+        """
+        response = self.api.get(f"issues/{self.context.pr_num}/comments")
+        votes: Dict[str, str] = {}
+
+        for comment in response.json():
+            if not re.search(r"^/lgtm\b", comment.get("body", ""), re.IGNORECASE):
+                continue
+
+            user = comment["user"]["login"]
+            if user == self.context.pr_sender:
+                self._handle_self_approval(user, comment["html_url"])
+
+            permission, is_valid = self.permissions.check_membership(user)
+            if is_valid and permission:
+                votes[user] = permission
+
+        return votes
+
+    def _handle_self_approval(self, user: str, comment_url: str) -> None:
+        """
+        Handles self-approval attempts.
+        """
+        msg = Templates.SELF_APPROVAL_ERROR.format(user=user, comment_url=comment_url)
+        self._post_comment(msg)
+        print(msg, file=sys.stderr)
+        sys.exit(1)
+
+    def _validate_merger_permissions(self) -> None:
+        """
+        Validates if the comment sender has permission to merge.
+        """
+        permission, is_valid = self.permissions.check_membership(
+            self.context.comment_sender
         )
-        print(message)
-        if send_comment:
-            self.post_lgtm_breakdown(valid_votes, lgtm_users)
-        sys.exit(0)
-
-    def post_lgtm_breakdown(
-        self, valid_votes: int, lgtm_users: Dict[str, Optional[str]]
-    ) -> None:
-        """
-        Posts a detailed breakdown of LGTM votes.
-        """
-        users_table = ""
-        for user, permission in lgtm_users.items():
-            is_valid = permission in self.lgtm_permissions
-            valid_mark = "✅" if is_valid else "❌"
-            users_table += f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"
-
-        message = LGTM_BREAKDOWN_TEMPLATE.format(
-            valid_votes=valid_votes,
-            threshold=self.lgtm_threshold,
-            users_table=users_table,
-        )
-        self.post_comment(message)
-
-    def merge_pr(self) -> bool:
-        """
-        Merges the PR if it has enough LGTM approvals.
-        """
-        # Check if the user has sufficient permissions to merge
-        permission, is_valid = self.check_membership(self.comment_sender)
         if not is_valid:
-            msg = INSUFFICIENT_PERMISSIONS.format(
-                user=self.comment_sender,
+            msg = Templates.INSUFFICIENT_PERMISSIONS.format(
+                user=self.context.comment_sender,
                 permission=permission,
-                required_permissions=", ".join(self.lgtm_permissions),
+                required_permissions=", ".join(self.context.lgtm_permissions),
             )
-            self.post_comment(msg)
+            self._post_comment(msg)
             print(msg, file=sys.stderr)
             sys.exit(1)
 
-        # Fetch LGTM votes and check if the threshold is met
-        valid_votes, lgtm_users = self.fetch_and_validate_lgtm_votes()
+    def _approve_pr(self, votes: Dict[str, str]) -> None:
+        """
+        Approves the PR with the collected LGTM votes.
+        """
+        users_table = "\n".join(
+            f"| @{user} | `{permission}` | ✅ |" for user, permission in votes.items()
+        )
+        message = Templates.APPROVED_TEMPLATE.format(
+            threshold=self.context.lgtm_threshold,
+            valid_votes=len(votes),
+            users_table=users_table,
+        )
+        self._post_comment(message)
+        self.api.post(
+            f"pulls/{self.context.pr_num}/reviews",
+            {"event": self.context.lgtm_review_event, "body": message},
+        )
 
-        if valid_votes >= self.lgtm_threshold:
-            endpoint = f"pulls/{self.pr_num}/merge"
-            data = {
-                "merge_method": self.merge_method,
-                "commit_title": f"Merged PR #{self.pr_num}",
-                "commit_message": f"PR #{self.pr_num} merged by {self.pr_sender} with {valid_votes} LGTM votes.",
-            }
-            response = self.api.put(endpoint, data)
-            if response and response.status_code == 200:
-                # Create the users table for the success message
-                users_table = ""
-                for user, permission in lgtm_users.items():
-                    is_valid = permission in self.lgtm_permissions
-                    valid_mark = "✅" if is_valid else "❌"
-                    users_table += (
-                        f"| @{user} | `{permission or 'unknown'}` | {valid_mark} |\n"
-                    )
+    def _post_lgtm_breakdown(self, votes: Dict[str, str]) -> None:
+        """
+        Posts a detailed breakdown of LGTM votes.
+        """
+        users_table = "\n".join(
+            f"| @{user} | `{permission}` | ✅ |"
+            if permission in self.context.lgtm_permissions
+            else f"| @{user} | `{permission}` | ❌ |"
+            for user, permission in votes.items()
+        )
+        message = Templates.LGTM_BREAKDOWN.format(
+            valid_votes=len(votes),
+            threshold=self.context.lgtm_threshold,
+            users_table=users_table,
+        )
+        self._post_comment(message)
 
-                success_message = SUCCESS_MERGED.format(
-                    merge_method=self.merge_method,
-                    comment_sender=self.comment_sender,
-                    valid_votes=valid_votes,
-                    lgtm_threshold=self.lgtm_threshold,
-                    users_table=users_table,
-                )
-                self.post_comment(success_message)
-                return True
+    def _merge_pr(self, votes: Dict[str, str]) -> None:
+        """
+        Merges the PR if it has enough LGTM approvals.
+        """
+        data = {
+            "merge_method": self.context.merge_method,
+            "commit_title": f"Merged PR #{self.context.pr_num}",
+            "commit_message": f"PR #{self.context.pr_num} merged by {self.context.comment_sender} with {len(votes)} LGTM votes.",
+        }
+        response = self.api.put(f"pulls/{self.context.pr_num}/merge", data)
 
-            self.post_comment(
-                MERGE_FAILED.format(
-                    pr_num=self.pr_num,
+        if response.status_code == 200:
+            users_table = "\n".join(
+                f"| @{user} | `{permission}` | ✅ |"
+                for user, permission in votes.items()
+            )
+            success_message = Templates.SUCCESS_MERGED.format(
+                merge_method=self.context.merge_method,
+                comment_sender=self.context.comment_sender,
+                valid_votes=len(votes),
+                lgtm_threshold=self.context.lgtm_threshold,
+                users_table=users_table,
+            )
+            self._post_comment(success_message)
+        else:
+            self._post_comment(
+                Templates.MERGE_FAILED.format(
+                    pr_num=self.context.pr_num,
                     status_code=response.status_code,
                     error_text=response.text,
-                ),
+                )
             )
-            return False
-
-        self.post_comment(
-            NOT_ENOUGH_LGTM.format(
-                valid_votes=valid_votes, threshold=self.lgtm_threshold
-            ),
-        )
-        return False
-
-    def fetch_and_validate_lgtm_votes(self):
-        """
-        Fetches LGTM votes and validates them.
-
-        Returns the number of valid votes and a dictionary of users with their
-        permissions.
-        """
-        endpoint = f"issues/{self.pr_num}/comments"
-        response = self.api.get(endpoint)
-        if response.status_code != 200:
-            error_message = COMMENTS_FETCH_ERROR.format(
-                status_code=response.status_code,
-                response_text=response.text,
-                pr_num=self.pr_num,
-            )
-            print(error_message, file=sys.stderr)
-            sys.exit(1)
-
-        comments = response.json()
-        lgtm_users: Dict[str, Optional[str]] = {}
-        for comment in comments:
-            body = comment.get("body", "")
-            if re.search(r"^/lgtm\b", body, re.IGNORECASE):
-                user = comment["user"]["login"]
-                if user == self.pr_sender:
-                    msg = SELF_APPROVAL_ERROR.format(
-                        user=user, comment_url=comment["html_url"]
-                    )
-                    self.post_comment(msg)
-                    print(msg, file=sys.stderr)
-                    sys.exit(1)
-                lgtm_users[user] = None
-
-        valid_votes = 0
-        for user in lgtm_users:
-            permission, is_valid = self.check_membership(user)
-            lgtm_users[user] = permission
-            if is_valid:
-                valid_votes += 1
-
-        return valid_votes, lgtm_users
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Manage prow-like commands on a GitHub PullRequest.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,  # Show default values in help
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    # LGTM threshold argument
     parser.add_argument(
         "--lgtm-threshold",
-        default=int(os.getenv("PAC_LGTM_THRESHOLD", "1")),  # Default as string
         type=int,
-        help="Minimum number of LGTM approvals required to merge a PR. "
-        "Can be overridden via the PAC_LGTM_THRESHOLD environment variable.",
+        default=Config.LGTM_THRESHOLD,
+        help="Minimum number of LGTM approvals required to merge a PR.",
     )
-    # LGTM permissions argument
     parser.add_argument(
         "--lgtm-permissions",
         default=os.getenv("PAC_LGTM_PERMISSIONS", "admin,write"),
-        help="Comma-separated list of GitHub permissions required to give a valid LGTM. "
-        "Can be overridden via the PAC_LGTM_PERMISSIONS environment variable.",
+        help="Comma-separated list of GitHub permissions required to give a valid LGTM.",
     )
-    # LGTM review event argument
     parser.add_argument(
         "--lgtm-review-event",
         default=os.getenv("PAC_LGTM_REVIEW_EVENT", "APPROVE"),
-        help="The type of review event to trigger when an LGTM is given. "
-        "Can be overridden via the PAC_LGTM_REVIEW_EVENT environment variable.",
+        help="The type of review event to trigger when an LGTM is given.",
     )
-    # Merge method argument
     parser.add_argument(
         "--merge-method",
         default=os.getenv("GH_MERGE_METHOD", "rebase"),
-        help="The method to use when merging the pull request. "
-        "Options: 'merge', 'rebase', or 'squash'. "
-        "Can be overridden via the GH_MERGE_METHOD environment variable.",
+        help="The method to use when merging the pull request. Options: 'merge', 'rebase', or 'squash'.",
     )
-    # GitHub token argument
     parser.add_argument(
         "--github-token",
         default=os.getenv("GITHUB_TOKEN"),
-        help="GitHub API token for authentication. "
-        "Required if the GITHUB_TOKEN environment variable is not set.",
+        help="GitHub API token for authentication.",
     )
-    # PR number argument
     parser.add_argument(
         "--pr-num",
         default=os.getenv("GH_PR_NUM"),
-        help="The number of the pull request to operate on. "
-        "Can be overridden via the GH_PR_NUM environment variable.",
+        help="The number of the pull request to operate on.",
     )
-    # PR sender argument
     parser.add_argument(
         "--pr-sender",
         default=os.getenv("GH_PR_SENDER"),
-        help="The GitHub username of the user who opened the pull request. "
-        "Can be overridden via the GH_PR_SENDER environment variable.",
+        help="The GitHub username of the user who opened the pull request.",
     )
-    # Comment sender argument
     parser.add_argument(
         "--comment-sender",
         default=os.getenv("GH_COMMENT_SENDER"),
-        help="The GitHub username of the user who triggered the command. "
-        "Can be overridden via the GH_COMMENT_SENDER environment variable.",
+        help="The GitHub username of the user who triggered the command.",
     )
-    # Repository owner argument
     parser.add_argument(
         "--repo-owner",
         default=os.getenv("GH_REPO_OWNER"),
-        help="The owner (organization or user) of the GitHub repository. "
-        "Can be overridden via the GH_REPO_OWNER environment variable.",
+        help="The owner (organization or user) of the GitHub repository.",
     )
-    # Repository name argument
     parser.add_argument(
         "--repo-name",
         default=os.getenv("GH_REPO_NAME"),
-        help="The name of the GitHub repository. "
-        "Can be overridden via the GH_REPO_NAME environment variable.",
+        help="The name of the GitHub repository.",
     )
-    # Trigger comment argument
     parser.add_argument(
         "--trigger-comment",
         default=os.getenv("PAC_TRIGGER_COMMENT"),
-        help="The comment that triggered this command. "
-        "Can be overridden via the PAC_TRIGGER_COMMENT environment variable.",
+        help="The comment that triggered this command.",
     )
-    parsed = parser.parse_args()
-    if not parsed.github_token:
+    args = parser.parse_args()
+
+    if not args.github_token:
         parser.error(
             "GitHub API token is required. Use --github-token or GITHUB_TOKEN env variable."
         )
-    if not parsed.pr_num:
+    if not args.pr_num:
         parser.error("PR number is required. Use --pr-num or GH_PR_NUM env variable.")
-    if not parsed.pr_sender:
+    if not args.pr_sender:
         parser.error(
             "PR sender is required. Use --pr-sender or GH_PR_SENDER env variable."
         )
-    if not parsed.comment_sender:
+    if not args.comment_sender:
         parser.error(
             "Comment sender is required. Use --comment-sender or GH_COMMENT_SENDER env variable."
         )
-    if not parsed.repo_owner:
+    if not args.repo_owner:
         parser.error(
             "Repository owner is required. Use --repo-owner or GH_REPO_OWNER env variable."
         )
-    if not parsed.repo_name:
+    if not args.repo_name:
         parser.error(
             "Repository name is required. Use --repo-name or GH_REPO_NAME env variable."
         )
-    if not parsed.trigger_comment:
+    if not args.trigger_comment:
         parser.error(
             "Trigger comment is required. Use --trigger-comment or PAC_TRIGGER_COMMENT env variable."
         )
-    return parsed
+
+    return args
 
 
 def main():
     args = parse_args()
-    # Initialize GitHub API and PR handler
     api_base = f"https://api.github.com/repos/{args.repo_owner}/{args.repo_name}"
-    headers = {
-        "Authorization": f"Bearer {args.github_token}",
-        "Accept": "application/vnd.github.v3+json",
-    }
-    api = GitHubAPI(api_base, headers)
-    pr_handler = PRHandler(api, args)
+    api = GitHubAPI(api_base, args.github_token)
+    context = PRContext.from_args(args)
+    pr_handler = PRHandler(api, context)
 
-    match = re.match(
-        r"^/(rebase|merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
-        args.trigger_comment,
-    )
-    if not match:
+    command = PRCommand.parse(args.trigger_comment)
+    if not command:
         print(
             f"⚠️ No valid command found in comment: {args.trigger_comment}",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    command, values = match.groups()
-    values = values.split()
-
-    if not pr_handler.check_status(args.pr_num, "open"):
-        print(f"⚠️ PR #{args.pr_num} is not open.", file=sys.stderr)
-        sys.exit(1)
-
-    response = None
-    if command in ("assign", "unassign"):
-        response = pr_handler.assign_unassign(command, values)
-    elif command == "label":
-        response = pr_handler.label(values)
-    elif command == "unlabel":
-        response = pr_handler.unlabel(values)
-    elif command == "rebase":
-        response = pr_handler.rebase()
-    elif command == "help":
-        response = pr_handler.post_comment(HELP_TEXT.strip())
-    elif command == "lgtm":
-        pr_handler.lgtm()
-    elif command == "merge":
-        pr_handler.merge_pr()
-
-    if response:
-        if not pr_handler.check_response(response):
-            sys.exit(1)
+    pr_handler.handle_command(command)
 
 
 if __name__ == "__main__":

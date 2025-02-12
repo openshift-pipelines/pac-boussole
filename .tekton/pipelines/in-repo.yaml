@@ -1,0 +1,81 @@
+# Pipeline using the pac-pro code from the revision where it started
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: in-repo
+spec:
+  params:
+    - name: repo_url
+    - name: revision
+    - name: repo_owner
+    - name: repo_name
+    - name: pull_request_number
+    - name: pull_request_sender
+    - name: comment_sender
+    - name: git_auth_secret
+    - name: git_auth_secret_key
+      default: git-provider-token
+    - name: trigger_comment
+    - name: lgtm_permissions
+      default: admin,write
+    - name: lgtm_threshold
+      default: "1"
+    - name: lgtm_review_event
+      default: APPROVE
+    - name: merge_method
+      default: rebase
+  tasks:
+    - name: manage-pr
+      displayName: Manage PR Assignments & Labels
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: fetch-repo
+            ref:
+              resolver: http
+              params:
+                - name: url
+                  value: https://raw.githubusercontent.com/tektoncd/catalog/main/stepaction/git-clone/0.1/git-clone.yaml
+            params:
+              - name: output-path
+                value: $(workspaces.source.path)
+              - name: url
+                value: "$(params.repo_url)"
+              - name: revision
+                value: "$(params.revision)"
+          - name: manage-pr
+            image: ghcr.io/openshift-pipelines/pipelines-as-code-prow:nightly
+            workingDir: $(workspaces.source.path)
+            env:
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: $(params.git_auth_secret)
+                    key: $(params.git_auth_secret_key)
+              - name: GH_REPO_OWNER
+                value: $(params.repo_owner)
+              - name: GH_PR_SENDER
+                value: $(params.pull_request_sender)
+              - name: GH_REPO_NAME
+                value: $(params.repo_name)
+              - name: GH_PR_NUM
+                value: $(params.pull_request_number)
+              - name: GH_COMMENT_SENDER
+                value: $(params.comment_sender)
+              - name: PAC_TRIGGER_COMMENT
+                value: |
+                  $(params.trigger_comment)
+              - name: GH_MERGE_METHOD
+                value: $(params.merge_method)
+              - name: PAC_LGTM_THRESHOLD
+                value: $(params.lgtm_threshold)
+              - name: PAC_LGTM_PERMISSIONS
+                value: $(params.lgtm_permissions)
+              - name: PAC_LGTM_REVIEW_EVENT
+                value: $(params.lgtm_review_event)
+            script: |
+              exec python3 prow/prow.py
+      workspaces:
+        - name: source

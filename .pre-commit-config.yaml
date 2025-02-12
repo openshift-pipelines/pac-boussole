@@ -27,15 +27,8 @@ repos:
             "90",
             --wrap-descriptions,
             "90",
-            prow,
+            pipelines_as_code_prow,
           ]
-  - repo: local
-    hooks:
-      - id: generated
-        language: system
-        name: Check Generated Files
-        entry: make
-        args: ["check"]
 
   - repo: local
     hooks:

@@ -4,6 +4,7 @@ RUN microdnf install python3-requests -y && \
     rm -rf /var/cache/yum
 RUN mkdir /src
 USER 1001
-COPY --chown=1001:1001 pipelines-as-code-prow  /src
+WORKDIR /src
+COPY --chown=1001:1001 pac-prow  .
 COPY --chown=1001:1001 pipelines_as_code_prow /src/pipelines_as_code_prow
-ENTRYPOINT ["python3", "/src/pipelines-as-code-prow"]
+ENTRYPOINT ["python3", "/src/pac-prow"]

@@ -27,6 +27,9 @@ directtest: ## Run a specific command directly (e.g., make directtest CMD=/lgtm)
 		PAC_TRIGGER_COMMENT="$(CMD)" GITHUB_TOKEN=`pass show $(PASS_TOKEN)` \
 		./pipelines_as_code_prow/prow.py
 
+check:
+	uv run pre-commit run -a
+
 open_pr: ## Open the PR in the browser
 	@if type -p xdg-open > /dev/null; then xdg-open $(PRURL); \
 	elif type -p open > /dev/null; then open $(PRURL); \

@@ -83,6 +83,9 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         self._pr_status = None
 
     def check_response(self, resp: requests.Response) -> bool:
+        """
+        Checks the status code of the response.
+        """
         if resp.status_code >= 200 and resp.status_code < 300:
             return True
         print(

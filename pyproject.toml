@@ -6,4 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 
 [dependency-groups]
-dev = ["pytest"]
+dev = [
+    "pre-commit>=4.1.0",
+    "pytest",
+]

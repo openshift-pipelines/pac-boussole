@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import argparse
 from unittest.mock import MagicMock
 
@@ -20,8 +21,7 @@ class MyFakeResponse:
         return self.body
 
     def __iter__(self):
-        for item in self.body:
-            yield item
+        yield from self.body
 
 
 @pytest.fixture
@@ -202,26 +202,6 @@ def test_merge_pr_insufficient_permissions(pr_handler, mock_api):
 
 
 def test_merge_pr_failure(pr_handler, mock_api):
-    # Mock successful LGTM check
-    def mock_get_responses():
-        return [
-            type(
-                "Response",
-                (),
-                {
-                    "status_code": 200,
-                    "json": lambda: [
-                        {"body": "/lgtm", "user": {"login": "reviewer1"}},
-                    ],
-                },
-            ),
-            type(
-                "Response",
-                (),
-                {"status_code": 200, "json": lambda: {"permission": "write"}},
-            ),
-        ]
-
     mock_responses = [
         MyFakeResponse(200, {"permission": "peon"}),
     ]

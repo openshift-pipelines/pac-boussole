@@ -1,0 +1,3 @@
+[MESSAGES CONTROL]
+disable=redefined-outer-name,line-too-long,missing-function-docstring,missing-module-docstring,too-many-locals,invalid-name
+

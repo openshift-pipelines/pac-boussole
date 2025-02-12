@@ -2,7 +2,7 @@ default_install_hook_types: ["pre-push"]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.9.4
+    rev: v0.9.6
     hooks:
       # Run the linter.
       - id: ruff
@@ -29,6 +29,15 @@ repos:
             "90",
             pipelines_as_code_prow,
           ]
+
+  - repo: local
+    hooks:
+      - id: pylint
+        name: Run Pylint
+        entry: "uv"
+        args: ["run", "pylint", "./pipelines_as_code_prow"]
+        language: system
+        types: [python]
 
   - repo: local
     hooks:

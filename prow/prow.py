@@ -211,7 +211,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         self._pr_status = None
 
     def check_response(self, resp: requests.Response) -> bool:
-        if resp.status_code > 200 and resp.status_code < 300:
+        if resp.status_code >= 200 and resp.status_code < 300:
             return True
         print(
             f"Error while executing the command: status: {resp.status_code} {resp.text}",

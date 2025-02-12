@@ -76,6 +76,6 @@ spec:
               - name: PAC_LGTM_REVIEW_EVENT
                 value: $(params.lgtm_review_event)
             script: |
-              exec python3 prow/prow.py
+              exec ./pipelines-as-code-prow
       workspaces:
         - name: source

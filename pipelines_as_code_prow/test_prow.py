@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from prow.prow import GitHubAPI, PRHandler
+from .prow import GitHubAPI, PRHandler
 
 
 class MyFakeResponse:

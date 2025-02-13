@@ -28,7 +28,7 @@ directtest: ## Run a specific command directly (e.g., make directtest CMD=/lgtm)
 		./pipelines_as_code_prow/prow.py
 
 check:
-	uv run pre-commit run -a
+	make check
 
 open_pr: ## Open the PR in the browser
 	@if type -p xdg-open > /dev/null; then xdg-open $(PRURL); \

@@ -30,6 +30,7 @@ from .messages import (  # isort:skip
     SUCCESS_MERGED,
     CHERRY_PICK_ERROR,
     CHERRY_PICK_SUCCESS,
+    CHERRY_PICK_CONFLICT,
 )
 
 
@@ -554,21 +555,13 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
         Posts detailed information and instructions for manual resolution.
         """
-        conflict_message = f"""🚨 Merge conflict detected while cherry-picking PR #{self.pr_num} to {target_branch}
-• Progress: {current_commit}/{total_commits} commits
-• Conflicting commit: {commit_sha}
-
-To resolve this conflict:
-1. Create a new branch from {target_branch}
-2. Cherry-pick the commits manually using:
-```
-git checkout -b resolve-cherry-pick-{self.pr_num} {target_branch}
-git cherry-pick {commit_sha}
-```
-3. Resolve the conflicts
-4. Create a new PR with your changes
-
-Need assistance? Please contact the repository maintainers."""
+        conflict_message = CHERRY_PICK_CONFLICT.format(
+            pr_num=self.pr_num,
+            target_branch=target_branch,
+            current_commit=current_commit,
+            total_commits=total_commits,
+            commit_sha=commit_sha,
+        )
         self._post_comment(conflict_message)
 
 

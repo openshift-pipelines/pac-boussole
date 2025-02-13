@@ -1,39 +1,48 @@
-# The PAC Boussole - A GitOps command tool that manages GitHub Pull Requests with Kubernetes Prow like commands
+# PAC Boussole - A GitOps Command Tool for GitHub PRs
 
 <p align="center">
-<img alt="gosmee logo" src="https://github.com/user-attachments/assets/1fef492b-3b40-4ef8-a934-b9a76517973e" width="25%" height="25%">
+  <img alt="Boussole logo" src="https://github.com/user-attachments/assets/1fef492b-3b40-4ef8-a934-b9a76517973e" width="25%" height="25%">
 </p>
 
 ## Overview
 
-Pipelines As Code Boussole let you trigger Tekton Pipelines based on GitHub comments replicating some of the prow commands functionality.
+**PAC Boussole** extends GitHub Pull Requests with command-based automation
+powered by [Tekton Pipelines](https://tekton.dev/). Inspired by
+[Prow](https://github.com/kubernetes/test-infra/tree/master/prow), Boussole
+lets you interact with PRs using predefined GitHub comments to trigger
+automated actions.
+
+### Key Features
+
+- Automate PR actions such as merging, assigning reviewers, labeling, and more.
+- Works seamlessly with Pipelines-as-Code and Tekton.
+- Uses GitHub comments to trigger actions, reducing manual intervention.
+- Designed for teams leveraging GitOps workflows.
 
 ## Supported Commands
 
-The following commands are supported:
-
 | Command                      | Description                                                      |
 |------------------------------|------------------------------------------------------------------|
-| `/assign user1 user2`        | Assigns users for review to the PR                               |
-| `/unassign user1 user2`      | Removes assigned users                                           |
-| `/label bug feature`         | Adds labels to the PR                                            |
-| `/unlabel bug feature`       | Removes labels from the PR                                       |
-| `/cherry-pick target-branch` | Cherry-picks the PR changes to the target branch on Merges       |
-| `/lgtm`                      | Approves the PR if at least 1 org members have commented `/lgtm` |
-| `/merge`                     | Merges the PR if it has enough `/lgtm` approvals                 |
-| `/rebase`                    | Rebases the PR branch on the base branch                         |
-| `/help`                      | Shows this help message                                          |
+| `/assign user1 user2`        | Assigns users for review to the PR                              |
+| `/unassign user1 user2`      | Removes assigned users                                          |
+| `/label bug feature`         | Adds labels to the PR                                           |
+| `/unlabel bug feature`       | Removes labels from the PR                                      |
+| `/cherry-pick target-branch` | Cherry-picks the PR changes to the target branch on merge      |
+| `/lgtm`                      | Approves the PR if at least one org member has commented `/lgtm` |
+| `/merge`                     | Merges the PR if it has enough `/lgtm` approvals               |
+| `/rebase`                    | Rebases the PR branch on the base branch                        |
+| `/help`                      | Displays available commands                                     |
 
-> [!IMPORTANT]
+> **Note:**
 >
-> * Please note that multiple comment on the same line are not supported, you need to issue one command per comment.
-> * The command needs to be located at the beginning of the comment, if there is any other text before the command it will be ignored.
+> - Each command must be issued as a separate comment (no multiple commands per
+>   comment yet).
+> - The command must be at the start of the comment; any preceding text will be
+>   ignored.
 
 ## Usage
 
-Below is an example usage of a PipelineRun to be placed in your `.tekton`
-directory that will listen to the comments issued by a authorized user and use
-our pipeline to execute the commands.
+To enable Boussole, add the following `PipelineRun` configuration to your `.tekton` directory:
 
 ```yaml
 apiVersion: tekton.dev/v1
@@ -41,7 +50,7 @@ kind: PipelineRun
 metadata:
   name: boussole
   annotations:
-    pipelinesascode.tekton.dev/pipeline: "https://raw.githubusercontent.com/openshift-pipelines/pac-boussole/refs/heads/main/pipeline-boussole.yaml"
+    pipelinesascode.tekton.dev/pipeline: "https://raw.githubusercontent.com/openshift-pipelines/pac-boussole/main/pipeline-boussole.yaml"
     pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|merge|lgtm|(cherry-pick|assign|unassign|label|unlabel)[ ].*)$"
     pipelinesascode.tekton.dev/max-keep-runs: "2"
 spec:
@@ -91,25 +100,37 @@ spec:
 
 ### Without Pipelines-as-Code
 
-You can use this Pipeline as well without Pipelines-as-Code from triggers for
-example. You just need to pass the necessary parameters to the
-`TriggerTemplate`.
+You can also use this pipeline independently via Tekton Triggers. Simply
+configure a `TriggerTemplate` with the required parameters.
 
-(feel free to contribute to this README with an example for other users).
+_(Contributions welcome! Feel free to add examples for alternative usage.)_
 
 ## Contributing
 
-Feel free to submit pull requests or open issues to help improve the
-project.
+We welcome contributions! Feel free to open issues or submit pull requests.
 
-### Development
+### Development Setup
 
-You will need to install [uv](https://github.com/astral-sh/uv) and use the
-makefile targets.
+1. Install [uv](https://github.com/astral-sh/uv).
+2. Use the provided Makefile targets for common tasks.
+3. Set up pre-commit hooks:
 
-Please install the pre-commit hooks by running `pre-commit install` to make sure
-your commits include the necessary files.
+   ```sh
+   pre-commit install
+   ```
 
-## Copyright
+   This ensures your commits adhere to project guidelines.
 
-[Apache-2.0](./LICENSE)
+## FAQ
+
+### Why the name "Boussole"?
+
+_Boussole_ is French for "compass," as this tool helps you navigate PR
+workflows. It's also a nod to [La
+Boussole](https://en.wikipedia.org/wiki/La_Boussole), a ship from the La
+Pérouse expedition that vanished in the Pacific. Depending on your experience,
+this analogy may be more or less fitting. 😉
+
+## License
+
+PAC Boussole is licensed under [Apache-2.0](./LICENSE).

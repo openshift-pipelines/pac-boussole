@@ -2,7 +2,7 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: prow-commands
+  name: boussole
   annotations:
     pipelinesascode.tekton.dev/on-comment: |
       ^/(help|rebase|merge|lgtm|(cherry-pick|assign|unassign|label|unlabel)[ ].*)$
@@ -32,7 +32,7 @@ spec:
       taskSpec:
         steps:
           - name: manage-pr
-            image: ghcr.io/openshift-pipelines/pipelines-as-code-prow:nightly
+            image: ghcr.io/openshift-pipelines/pac-boussole:nightly
             env:
               - name: GITHUB_TOKEN
                 valueFrom:

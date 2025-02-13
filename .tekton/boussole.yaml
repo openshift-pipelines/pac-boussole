@@ -2,7 +2,7 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  name: prow-commands
+  name: boussole
   annotations:
     pipelinesascode.tekton.dev/pipeline: ".tekton/pipelines/in-repo.yaml"
     pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|merge|lgtm|(cherry-pick|assign|unassign|label|unlabel) )"
@@ -16,6 +16,7 @@ spec:
     - name: trigger_comment
       value: |
         {{ trigger_comment }}
+
     - name: repo_owner
       value: "{{ repo_owner }}"
     - name: repo_name

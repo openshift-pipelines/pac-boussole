@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # Author: Chmouel Boudjnah <chmouel@chmouel.com>
 
-from pipelines_as_code_prow import prow
+from boussole import boussole
 
 if __name__ == "__main__":
-    prow.main()
+    boussole.main()

@@ -27,7 +27,7 @@ repos:
             "90",
             --wrap-descriptions,
             "90",
-            pipelines_as_code_prow,
+            "boussole",
           ]
 
   - repo: local
@@ -35,7 +35,7 @@ repos:
       - id: pylint
         name: Run Pylint
         entry: "pylint"
-        args: ["./pipelines_as_code_prow"]
+        args: ["./boussole"]
         language: system
         types: [python]
 

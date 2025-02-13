@@ -5,6 +5,6 @@ RUN microdnf install python3-requests -y && \
 RUN mkdir /src
 USER 1001
 WORKDIR /src
-COPY --chown=1001:1001 pac-prow  .
-COPY --chown=1001:1001 pipelines_as_code_prow /src/pipelines_as_code_prow
-ENTRYPOINT ["python3", "/src/pac-prow"]
+COPY --chown=1001:1001 pac-boussole  .
+COPY --chown=1001:1001 boussole /src/boussole
+ENTRYPOINT ["python3", "/src/pac-boussole"]

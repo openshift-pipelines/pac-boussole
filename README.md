@@ -127,7 +127,7 @@ We welcome contributions! Feel free to open issues or submit pull requests.
 
 _Boussole_ is French for "compass," as this tool helps you navigate PR
 workflows. It's also a nod to [La
-Boussole](https://en.wikipedia.org/wiki/La_Boussole), a ship from the La
+Boussole](https://en.wikipedia.org/wiki/French_ship_Boussole_(1782)), a ship from the La
 Pérouse expedition that vanished in the Pacific. Depending on your experience,
 this analogy may be more or less fitting. 😉
 

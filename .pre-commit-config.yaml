@@ -34,8 +34,8 @@ repos:
     hooks:
       - id: pylint
         name: Run Pylint
-        entry: "uv"
-        args: ["run", "pylint", "./pipelines_as_code_prow"]
+        entry: "pylint"
+        args: ["./pipelines_as_code_prow"]
         language: system
         types: [python]
 

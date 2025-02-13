@@ -6,7 +6,10 @@ env:
   REGISTRY_USER: ${{ github.actor }}
   REGISTRY_PASSWORD: ${{ github.token }}
 
-on: [push]
+on:
+  push:
+    paths:
+      - "boussole/**"
 
 jobs:
   build-multi-arch-image:

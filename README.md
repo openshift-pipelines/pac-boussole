@@ -1,4 +1,9 @@
-# Boussole - A GitOps command tool that manages GitHub Pull Requests with Kubernetes Prow like commands
+# The PAC Boussole - A GitOps command tool that manages GitHub Pull Requests with Kubernetes Prow like commands
+
+<p align="center">
+<img alt="gosmee logo" src="https://github.com/user-attachments/assets/1fef492b-3b40-4ef8-a934-b9a76517973e" width="25%" height="25%">
+</p>
+
 
 ## Overview
 

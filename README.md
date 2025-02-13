@@ -103,7 +103,7 @@ spec:
 You can also use this pipeline independently via Tekton Triggers. Simply
 configure a `TriggerTemplate` with the required parameters.
 
-_(Contributions welcome! Feel free to add examples for alternative usage.)_
+(Contributions welcome! Feel free to add examples for alternative usage.)
 
 ## Contributing
 

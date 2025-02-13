@@ -1,8 +1,8 @@
-# Prow control commands with Pipelines-as-Code
+# Boussole - A GitOps command tool that manages GitHub Pull Requests with Kubernetes Prow like commands
 
 ## Overview
 
-Pipelines As Code Prow let you trigger Tekton Pipelines based on GitHub comments replicating some of the prow commands functionality.
+Pipelines As Code Boussole let you trigger Tekton Pipelines based on GitHub comments replicating some of the prow commands functionality.
 
 ## Supported Commands
 
@@ -35,9 +35,9 @@ our pipeline to execute the commands.
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  name: prow-commands
+  name: boussole
   annotations:
-    pipelinesascode.tekton.dev/pipeline: "https://raw.githubusercontent.com/openshift-pipelines/pipelines-as-code-prow/refs/heads/main/pipeline-prow.yaml"
+    pipelinesascode.tekton.dev/pipeline: "https://raw.githubusercontent.com/openshift-pipelines/pac-boussole/refs/heads/main/pipeline-boussole.yaml"
     pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|merge|lgtm|(cherry-pick|assign|unassign|label|unlabel)[ ].*)$"
     pipelinesascode.tekton.dev/max-keep-runs: "2"
 spec:
@@ -82,7 +82,7 @@ spec:
     # - name: merge_method
     #   value: "rebase"
   pipelineRef:
-    name: prow-commands
+    name: boussole
 ```
 
 ### Without Pipelines-as-Code

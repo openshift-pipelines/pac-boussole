@@ -200,3 +200,17 @@ gh pr create --base {target_branch} --head YOURFORK:resolve-cherry-pick-{self.pr
 
 Need assistance? Please contact the repository maintainers.
 """
+
+REVIEW_REQUESTED = """{greeting}
+
+🔍 @{submitter} has kindly requested your review on this PR. 
+
+• Please review the changes and provide your feedback
+• Look for code quality, potential bugs, and overall design
+• Feel free to suggest improvements or alternatives
+• Consider testing the changes if possible
+
+⏰ Take your time - there's no immediate rush, but a timely review would be
+appreciated.
+
+Thank you for your help! 🙌"""

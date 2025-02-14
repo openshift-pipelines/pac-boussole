@@ -31,6 +31,7 @@ from .messages import (  # isort:skip
     CHERRY_PICK_ERROR,
     CHERRY_PICK_SUCCESS,
     CHERRY_PICK_CONFLICT,
+    REVIEW_REQUESTED,
 )
 
 
@@ -245,17 +246,35 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
     def assign_unassign(self, command: str, users: List[str]) -> requests.Response:
         """
-        Assigns or unassigns users for review.
+        Assigns or unassigns users for review with a friendly and informative message.
+
+        Args:
+            command (str): Either 'assign' or 'unassign'
+            users (List[str]): List of GitHub usernames to assign/unassign
+
+        Returns:
+            requests.Response: Response from the GitHub API
         """
         endpoint = f"pulls/{self.pr_num}/requested_reviewers"
         users = [user.lstrip("@") for user in users]
         data = {"reviewers": users}
         method = self.api.post if command == "assign" else self.api.delete
         response = method(endpoint, data)
+
         if response and response.status_code in [200, 201, 204]:
-            self._post_comment(
-                f"✅ {command.capitalize()}ed <b>{', '.join(users)}</b> for reviews."
-            )
+            if command == "assign":
+                # Create a friendly message for assignments
+                greeting = "👋 Hello " + ", ".join([f"@{user}" for user in users])
+                submitter = self.comment_sender
+                message = REVIEW_REQUESTED.format(
+                    greeting=greeting, submitter=submitter
+                )
+            else:
+                # Message for unassignment
+                message = f"♻️ Removed {', '.join(f'@{user}' for user in users)} from the review list. Thanks for your time!"
+
+            self._post_comment(message)
+
         return response
 
     def label(self, labels: List[str]) -> requests.Response:

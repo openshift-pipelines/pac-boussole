@@ -14,7 +14,7 @@ import re
 import sys
 from typing import Dict, List, Optional, Tuple
 
-import requests  # type: ignore
+from .client import GitHubAPI, RequestResponse
 
 from .messages import (  # isort:skip
     APPROVED_TEMPLATE,
@@ -33,36 +33,6 @@ from .messages import (  # isort:skip
     CHERRY_PICK_CONFLICT,
     REVIEW_REQUESTED,
 )
-
-
-class GitHubAPI:
-    """
-    Wrapper for GitHub API calls to make them mockable.
-    """
-
-    timeout: int = 10
-
-    def __init__(self, base_url: str, headers: Dict[str, str]):
-        self.base_url = base_url
-        self.headers = headers
-
-    def get(self, endpoint: str) -> requests.Response:
-        url = f"{self.base_url}/{endpoint}"
-        return requests.get(url, headers=self.headers, timeout=self.timeout)
-
-    def post(self, endpoint: str, data: Dict) -> requests.Response:
-        url = f"{self.base_url}/{endpoint}"
-        return requests.post(url, json=data, headers=self.headers, timeout=self.timeout)
-
-    def put(self, endpoint: str, data: Dict) -> requests.Response:
-        url = f"{self.base_url}/{endpoint}"
-        return requests.put(url, json=data, headers=self.headers, timeout=self.timeout)
-
-    def delete(self, endpoint: str, data: Optional[Dict] = None) -> requests.Response:
-        url = f"{self.base_url}/{endpoint}"
-        return requests.delete(
-            url, json=data, headers=self.headers, timeout=self.timeout
-        )
 
 
 class PRHandler:  # pylint: disable=too-many-instance-attributes
@@ -84,21 +54,21 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         self.lgtm_review_event = args.lgtm_review_event
         self.merge_method = args.merge_method
 
-        self._pr_status = None
+        self._pr_status: RequestResponse | None = None
 
-    def check_response(self, resp: requests.Response) -> bool:
+    def check_response(self, resp: RequestResponse) -> bool:
         """
         Checks the response status code and prints an error message if needed.
         """
-        if resp.status_code >= 200 and resp.status_code < 300:
+        if resp.getcode() >= 200 and resp.getcode() < 300:
             return True
         print(
-            f"Error while executing the command: status: {resp.status_code} {resp.text}",
+            f"Error while executing the command: status: {resp.getcode()} {resp.read().decode()}",
             file=sys.stderr,
         )
         return False
 
-    def _post_comment(self, message: str) -> requests.Response:
+    def _post_comment(self, message: str) -> RequestResponse:
         """
         Posts a comment to the pull request.
         """
@@ -223,7 +193,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
         return response.status_code == 201
 
-    def _get_pr_status(self, number: int) -> requests.Response:
+    def _get_pr_status(self, number: int) -> RequestResponse:
         """
         Fetches the status of a pull request.
         """
@@ -244,7 +214,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             sys.exit(1)
         return pr_status.json().get("state") == status
 
-    def assign_unassign(self, command: str, users: List[str]) -> requests.Response:
+    def assign_unassign(self, command: str, users: List[str]) -> RequestResponse:
         """
         Assigns or unassigns users for review with a friendly and informative message.
 
@@ -277,7 +247,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
         return response
 
-    def label(self, labels: List[str]) -> requests.Response:
+    def label(self, labels: List[str]) -> RequestResponse:
         """
         Adds labels to the PR.
         """
@@ -286,16 +256,15 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         self._post_comment(f"✅ Added labels: <b>{', '.join(labels)}</b>.")
         return self.api.post(endpoint, data)
 
-    def unlabel(self, labels: List[str]) -> requests.Response:
+    def unlabel(self, labels: List[str]) -> RequestResponse:
         """
         Removes labels from the PR.
         """
         for label in labels:
             self.api.delete(f"issues/{self.pr_num}/labels/{label}")
-        self._post_comment(f"✅ Removed labels: <b>{', '.join(labels)}</b>.")
-        return requests.Response()
+        return self._post_comment(f"✅ Removed labels: <b>{', '.join(labels)}</b>.")
 
-    def cherry_pick(self, values: List[str]) -> requests.Response:
+    def cherry_pick(self, values: List[str]) -> None:
         """
         Posts a comment indicating the PR will be cherry-picked to the specified branch.
         """
@@ -310,9 +279,8 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         self._post_comment(
             f"✅ We will cherry-pick this PR to the branch `{target_branch}` upon merge."
         )
-        return requests.Response()
 
-    def rebase(self) -> requests.Response:
+    def rebase(self) -> RequestResponse:
         endpoint = f"pulls/{self.pr_num}/update-branch"
         self._post_comment("✅ Rebased the PR branch on the base branch.")
         return self.api.put(endpoint, {})

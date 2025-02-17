@@ -1,10 +1,12 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring,wrong-import-position
 import argparse
+import sys
 from unittest.mock import MagicMock
 
 import pytest
 
-from .boussole import GitHubAPI, PRHandler
+sys.path.append("../boussole")  # TODO: Find a better way to import the module
+from boussole.boussole import GitHubAPI, PRHandler  # Import main and PRHandler
 
 
 class MyFakeResponse:
@@ -12,16 +14,11 @@ class MyFakeResponse:
         self.body = body
         self.status_code = status_code
 
-    def get(self, _arg, _arg2):
-        print(_arg, _arg2)
-        print(self.body)
-        return self.body
+    def get(self, _key, default=None):
+        return self.body if isinstance(self.body, dict) else default
 
     def json(self):
         return self.body
-
-    def __iter__(self):
-        yield from self.body
 
 
 @pytest.fixture
@@ -29,16 +26,14 @@ def mock_api():
     api = GitHubAPI(
         "https://api.github.com/repos/test/repo", {"Authorization": "Bearer test_token"}
     )
-    api.get = MagicMock()
-    api.post = MagicMock()
-    api.put = MagicMock()
-    api.delete = MagicMock()
+    for method in ("get", "post", "put", "delete"):
+        setattr(api, method, MagicMock())
     return api
 
 
 @pytest.fixture
 def mock_args():
-    args = argparse.Namespace(
+    return argparse.Namespace(
         pr_num="123",
         pr_sender="test_user",
         comment_sender="reviewer",
@@ -51,7 +46,6 @@ def mock_args():
         github_token="test_token",
         trigger_comment="/lgtm",
     )
-    return args
 
 
 @pytest.fixture

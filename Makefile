@@ -11,7 +11,8 @@ GH_COMMENT_SENDER = anotheruser
 PASS_TOKEN = github/chmouel-token
 PRURL = https://github.com/$(GH_REPO_OWNER)/$(GH_REPO_NAME)/pull/$(GH_PR_NUM)
 CONTAINER_IMAGE = ghcr.io/openshift-pipelines/pac-boussole:nightly
-PYTEST = uvx --with=requests --with=pytest-cov --with=pytest-sugar pytest
+PYTEST = pytest
+PYLINT = pylint
 PYTEST_ARGS = --cov=boussole --cov-report=term
 
 # Phony targets
@@ -20,15 +21,15 @@ PYTEST_ARGS = --cov=boussole --cov-report=term
 test: ## Run tests with pytest
 	@$(PYTEST) -v boussole $(PYTEST_ARGS) $(ARGS)
 
+lint:
+	@$(PYLINT) boussole
+
 directtest: ## Run a specific command directly (e.g., make directtest CMD=/lgtm)
 	@[[ -n "$(CMD)" ]] || (echo "Please specify a command to run as argument: like 'make directtest CMD=/lgtm'" && exit 1)
 	@env GH_PR_NUM=$(GH_PR_NUM) GH_REPO_NAME=$(GH_REPO_NAME) GH_REPO_OWNER=$(GH_REPO_OWNER) \
 		GH_PR_SENDER=$(GH_PR_SENDER) GH_COMMENT_SENDER=$(GH_COMMENT_SENDER) \
 		PAC_TRIGGER_COMMENT="$(CMD)" GITHUB_TOKEN=`pass show $(PASS_TOKEN)` \
 		python3 ./boussole/boussole.py
-
-check:
-	make check
 
 open_pr: ## Open the PR in the browser
 	@if type -p xdg-open > /dev/null; then xdg-open $(PRURL); \

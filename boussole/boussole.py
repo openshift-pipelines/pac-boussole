@@ -18,6 +18,7 @@ from .client import GitHubAPI, RequestResponse
 
 from .messages import (  # isort:skip
     APPROVED_TEMPLATE,
+    CHECKS_NOT_PASSED,
     COMMENTS_FETCH_ERROR,
     HELP_TEXT,
     INSUFFICIENT_PERMISSIONS,
@@ -204,6 +205,48 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         self._pr_status = self.api.get(endpoint)
         return self._pr_status
 
+    def _check_runs_status(self) -> Tuple[bool, List[Dict]]:
+        """
+        Checks if all check runs are successful.
+
+        Returns a tuple of (all_success, failed_checks).
+        """
+        endpoint = f"commits/{self._get_pr_status(self.pr_num).json()['head']['sha']}/check-runs"
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        headers.update(self.api.headers)
+
+        response = self.api.get(endpoint)
+        if response.status_code != 200:
+            return False, []
+
+        check_runs = response.json()["check_runs"]
+
+        failed_checks = [
+            {
+                "name": check["name"],
+                "status": check["status"],
+                "conclusion": check["conclusion"],
+                "html_url": check["html_url"],
+            }
+            for check in check_runs
+            if check["status"] == "completed"
+            and check["conclusion"] not in ["success", "skipped"]
+        ]
+
+        pending_checks = [
+            {
+                "name": check["name"],
+                "status": check["status"],
+                "html_url": check.get("html_url", ""),
+            }
+            for check in check_runs
+            if check["status"] != "completed"
+            and not check["name"].endswith(" / boussole")
+        ]
+
+        all_success = not (failed_checks or pending_checks)
+        return all_success, failed_checks + pending_checks
+
     def check_status(self, num: int, status: str) -> bool:
         pr_status = self._get_pr_status(num)
         if pr_status.status_code != 200:
@@ -351,7 +394,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
     def merge_pr(self) -> bool:
         """
-        Merges the PR if it has enough LGTM approvals and performs cherry-picks.
+        Merges the PR if it has enough LGTM approvals and all checks are green.
         """
         # Check if the user has sufficient permissions to merge
         permission, is_valid = self._check_membership(self.comment_sender)
@@ -362,6 +405,27 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
                 required_permissions=", ".join(self.lgtm_permissions),
             )
             self._post_comment(msg)
+            print(msg, file=sys.stderr)
+            sys.exit(1)
+
+        # Check if all check runs are green
+        all_checks_passed, failed_checks = self._check_runs_status()
+        if not all_checks_passed:
+            status_table = "\n| Check Name | Status |\n|------------|--------|\n"
+            for check in failed_checks:
+                status = check.get("conclusion", check["status"])
+                check_name = check["name"]
+                # Add the URL link if available in the check data
+                if "html_url" in check:
+                    check_name = f"[{check['name']}]({check['html_url']})"
+                status_table += f"| {check_name} | `{status}` |\n"
+
+            msg = (
+                "⚠️ Cannot merge PR: Some checks are not passing.\n\n"
+                f"{status_table}\n\n"
+                "Please wait for all checks to pass before merging."
+            )
+            self._post_comment(CHECKS_NOT_PASSED.format(status_table=status_table))
             print(msg, file=sys.stderr)
             sys.exit(1)
 

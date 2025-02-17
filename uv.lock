@@ -149,6 +149,7 @@ source = { virtual = "." }
 dev = [
     { name = "pre-commit" },
     { name = "pylint" },
+    { name = "pytest" },
     { name = "pytest-cov" },
 ]
 
@@ -158,6 +159,7 @@ dev = [
 dev = [
     { name = "pre-commit", specifier = ">=4.1.0" },
     { name = "pylint", specifier = ">=3.3.4" },
+    { name = "pytest", specifier = ">=8.3.4" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
 ]
 

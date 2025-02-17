@@ -709,13 +709,14 @@ def main():
     api = GitHubAPI(api_base, headers)
     pr_handler = PRHandler(api, args)
 
+    trigger_comment = args.trigger_comment.lstrip("\\n")
     match = re.match(
         r"^/(rebase|cherry-pick|merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
-        args.trigger_comment,
+        trigger_comment,
     )
     if not match:
         print(
-            f"⚠️ No valid command found in comment: {args.trigger_comment}",
+            f"⚠️ No valid command found in comment: {trigger_comment}",
             file=sys.stderr,
         )
         sys.exit(1)

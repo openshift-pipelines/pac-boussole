@@ -214,3 +214,11 @@ REVIEW_REQUESTED = """{greeting}
 appreciated.
 
 Thank you for your help! 🙌"""
+
+
+CHECKS_NOT_PASSED = """⚠️ Cannot merge PR: Some required checks haven't completed successfully.
+
+{status_table}
+
+🔍 Please ensure all checks pass before merging.
+💡 Tip: Review the failing checks above and address any issues."""

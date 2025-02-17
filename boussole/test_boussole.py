@@ -147,6 +147,41 @@ def test_check_membership_invalid_response(pr_handler, mock_api):
     assert is_valid is False
 
 
+def test_merge_pr_no_all_checks_succeed(capsys, pr_handler, mock_api):
+    all_checks = MyFakeResponse(
+        200,
+        {
+            "check_runs": [
+                {
+                    "name": "check-1",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "html_url": "http://test.url",
+                },
+                {
+                    "name": "check-2",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "html_url": "http://test.url",
+                },
+            ],
+        },
+    )
+
+    mock_responses = [
+        MyFakeResponse(200, {"permission": "admin"}),
+        MyFakeResponse(200, {"head": {"sha": "abc123"}}),
+        all_checks,
+    ]
+
+    mock_api.get.side_effect = mock_responses
+
+    with pytest.raises(SystemExit) as exc_info:
+        pr_handler.merge_pr()
+        assert "Cannot merge PR" in capsys.err
+    assert exc_info.value.code == 1
+
+
 def test_merge_pr_success(pr_handler, mock_api):
     all_comments = MyFakeResponse(
         200,
@@ -156,8 +191,24 @@ def test_merge_pr_success(pr_handler, mock_api):
         ],
     )
 
+    all_checks = MyFakeResponse(
+        200,
+        {
+            "check_runs": [
+                {
+                    "name": "check-1",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "html_url": "http://test.url",
+                },
+            ],
+        },
+    )
+
     mock_responses = [
         MyFakeResponse(200, {"permission": "admin"}),
+        MyFakeResponse(200, {"head": {"sha": "abc123"}}),
+        all_checks,
         all_comments,
         MyFakeResponse(200, {"permission": "write"}),  # reviewer1
         MyFakeResponse(200, {"permission": "write"}),  # reviewer2

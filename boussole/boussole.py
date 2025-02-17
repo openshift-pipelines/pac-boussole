@@ -76,13 +76,32 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         endpoint = f"issues/{self.pr_num}/comments"
         return self.api.post(endpoint, {"body": message})
 
-    def _fetch_and_validate_lgtm_votes(self):
+    def _fetch_and_validate_lgtm_votes(self) -> Tuple[int, Dict[str, Optional[str]]]:
         """
         Fetches LGTM votes and validates them.
 
         Returns the number of valid votes and a dictionary of users with their
         permissions.
         """
+        reviews_endpoint = f"pulls/{self.pr_num}/reviews"
+        reviews_response = self.api.get(reviews_endpoint)
+        if reviews_response.status_code != 200:
+            error_message = COMMENTS_FETCH_ERROR.format(
+                status_code=reviews_response.status_code,
+                response_text=reviews_response.text,
+                pr_num=self.pr_num,
+            )
+            print(error_message, file=sys.stderr)
+            sys.exit(1)
+
+        lgtm_users: Dict[str, Optional[str]] = {}
+        reviews = reviews_response.json()
+        for review in reviews:
+            if review["state"].lower() == "approved":
+                user = review["user"]["login"]
+                if user != self.pr_sender:  # Skip self-approvals
+                    lgtm_users[user] = None
+
         endpoint = f"issues/{self.pr_num}/comments"
         response = self.api.get(endpoint)
         if response.status_code != 200:
@@ -93,9 +112,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             )
             print(error_message, file=sys.stderr)
             sys.exit(1)
-
         comments = response.json()
-        lgtm_users: Dict[str, Optional[str]] = {}
         for comment in comments:
             body = comment.get("body", "")
             if re.search(r"^/lgtm\b", body, re.IGNORECASE):
@@ -331,40 +348,11 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
     def lgtm(self, send_comment: bool = True) -> int:
         """
         Processes LGTM votes and approves the PR if the threshold is met.
+
+        Includes both comment-based LGTM and direct PR approvals.
         """
-        endpoint = f"issues/{self.pr_num}/comments"
-        response = self.api.get(endpoint)
-        if response.status_code != 200:
-            error_message = COMMENTS_FETCH_ERROR.format(
-                status_code=response.status_code,
-                response_text=response.text,
-                pr_num=self.pr_num,
-            )
-            print(error_message, file=sys.stderr)
-            sys.exit(1)
-
-        comments = response.json()
-        lgtm_users: Dict[str, Optional[str]] = {}
-        for comment in comments:
-            body = comment.get("body", "")
-            if re.search(r"^/lgtm\b", body, re.IGNORECASE):
-                user = comment["user"]["login"]
-                if user == self.pr_sender:
-                    msg = SELF_APPROVAL_ERROR.format(
-                        user=user, comment_url=comment["html_url"]
-                    )
-                    self._post_comment(msg)
-                    print(msg, file=sys.stderr)
-                    sys.exit(1)
-                lgtm_users[user] = None
-
-        valid_votes = 0
-        for user in lgtm_users:
-            permission, is_valid = self._check_membership(user)
-            lgtm_users[user] = permission
-            if is_valid:
-                valid_votes += 1
-
+        # First check direct PR approvals
+        valid_votes, lgtm_users = self._fetch_and_validate_lgtm_votes()
         if valid_votes >= self.lgtm_threshold:
             users_table = ""
             for user, permission in lgtm_users.items():
@@ -431,7 +419,6 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
         # Fetch LGTM votes and check if the threshold is met
         valid_votes, lgtm_users = self._fetch_and_validate_lgtm_votes()
-
         if valid_votes >= self.lgtm_threshold:
             endpoint = f"pulls/{self.pr_num}/merge"
             data = {

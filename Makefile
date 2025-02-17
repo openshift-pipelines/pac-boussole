@@ -5,9 +5,9 @@ UVCMD = uv run
 PIPELINE_PROW = pipeline-boussole.yaml
 GH_REPO_OWNER = openshift-pipelines
 GH_REPO_NAME = pac-boussole
-GH_PR_NUM = 16
-GH_PR_SENDER = chmouel
-GH_COMMENT_SENDER = anotheruser
+GH_PR_NUM = 44
+GH_PR_SENDER = anotheruser
+GH_COMMENT_SENDER = chmouel
 PASS_TOKEN = github/chmouel-token
 PRURL = https://github.com/$(GH_REPO_OWNER)/$(GH_REPO_NAME)/pull/$(GH_PR_NUM)
 CONTAINER_IMAGE = ghcr.io/openshift-pipelines/pac-boussole:nightly
@@ -29,7 +29,7 @@ directtest: ## Run a specific command directly (e.g., make directtest CMD=/lgtm)
 	@env GH_PR_NUM=$(GH_PR_NUM) GH_REPO_NAME=$(GH_REPO_NAME) GH_REPO_OWNER=$(GH_REPO_OWNER) \
 		GH_PR_SENDER=$(GH_PR_SENDER) GH_COMMENT_SENDER=$(GH_COMMENT_SENDER) \
 		PAC_TRIGGER_COMMENT="$(CMD)" GITHUB_TOKEN=`pass show $(PASS_TOKEN)` \
-		python3 ./boussole/boussole.py
+		./pac-boussole
 
 open_pr: ## Open the PR in the browser
 	@if type -p xdg-open > /dev/null; then xdg-open $(PRURL); \

@@ -5,7 +5,7 @@
 </p>
 
 > [!CAUTION]
-> This is currently unsupported product from the openshift-pipelines and only provided "as-is"
+> This product is not supported by OpenShift Pipelines and is provided on an "as-is" basis, without any official support or guarantees.
 
 ## Overview
 

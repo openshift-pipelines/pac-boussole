@@ -109,6 +109,7 @@ def test_lgtm(pr_handler, mock_api):
 
     # Assign the side_effect to return different results on multiple calls
     mock_api.get.return_value.json.side_effect = [
+        [],
         mock_json_comments(),  # First call to json() -> PR comments
         mock_json_permissions(),  # Second call to json() -> reviewer1 permission
         mock_json_permissions(),  # Third call to json() -> reviewer2 permission
@@ -118,12 +119,36 @@ def test_lgtm(pr_handler, mock_api):
     mock_api.get.return_value.status_code = 200
 
 
+def test_lgtm_by_review_request(pr_handler, mock_api, capsys):
+    mock_api.get.return_value.status_code = 200
+
+    # Mock response for PR comments with self-approval
+    mock_api.get.return_value.json.side_effect = [
+        [
+            {"state": "APPROVED", "user": {"login": "reviewer1"}},
+            {"state": "APPROVED", "user": {"login": "reviewer2"}},
+        ],
+        [],
+        {"permission": "write"},
+        {"permission": "write"},
+    ]
+    pr_handler.lgtm()
+    assert "PR approved with LGTM votes" in capsys.readouterr().out
+
+
 def test_lgtm_self_approval(pr_handler, mock_api):
     mock_api.get.return_value.status_code = 200
 
     # Mock response for PR comments with self-approval
-    mock_api.get.return_value.json.return_value = [
-        {"body": "/lgtm", "user": {"login": "test_user"}, "html_url": "http://test.url"}
+    mock_api.get.return_value.json.side_effect = [
+        [],
+        [
+            {
+                "body": "/lgtm",
+                "user": {"login": "test_user"},
+                "html_url": "http://test.url",
+            },
+        ],
     ]
 
     with pytest.raises(SystemExit) as exc_info:
@@ -209,6 +234,7 @@ def test_merge_pr_success(pr_handler, mock_api):
         MyFakeResponse(200, {"permission": "admin"}),
         MyFakeResponse(200, {"head": {"sha": "abc123"}}),
         all_checks,
+        MyFakeResponse(200, {}),
         all_comments,
         MyFakeResponse(200, {"permission": "write"}),  # reviewer1
         MyFakeResponse(200, {"permission": "write"}),  # reviewer2

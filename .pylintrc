@@ -1,3 +1,3 @@
 [MESSAGES CONTROL]
-disable=redefined-outer-name,line-too-long,missing-function-docstring,missing-module-docstring,too-many-locals,invalid-name,protected-access,consider-using-with,fixme
+disable=redefined-outer-name,line-too-long,missing-function-docstring,missing-module-docstring,too-many-locals,invalid-name,protected-access,consider-using-with,fixme,too-many-branches
 

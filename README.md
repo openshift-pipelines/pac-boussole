@@ -4,6 +4,9 @@
   <img alt="Boussole logo" src="https://github.com/user-attachments/assets/1fef492b-3b40-4ef8-a934-b9a76517973e" width="25%" height="25%">
 </p>
 
+> [!CAUTION]
+> This is currently unsupported product from the openshift-pipelines and only provided "as-is"
+
 ## Overview
 
 **PAC Boussole** extends GitHub Pull Requests with command-based automation

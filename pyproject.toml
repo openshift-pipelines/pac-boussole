@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A GitOps command tool that manages GitHub Pull Requests with Kubernetes Prow like commands"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["requests>=2.32.3"]
+dependencies = []
 
 [dependency-groups]
-dev = ["pre-commit>=4.1.0", "pylint>=3.3.4", "pytest"]
+dev = ["pre-commit>=4.1.0", "pylint>=3.3.4", "pytest-cov>=6.0.0"]

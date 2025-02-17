@@ -134,6 +134,10 @@ Boussole](https://en.wikipedia.org/wiki/French_ship_Boussole_(1782)), a ship fro
 Pérouse expedition that vanished in the Pacific. Depending on your experience,
 this analogy may be more or less fitting. 😉
 
+<p align="center">
+  <img alt="Boussole logo" src="https://github.com/user-attachments/assets/2224611a-6bb9-4c5c-9426-77efc996b6ca" width="25%" height="25%">
+</p>
+
 ## License
 
 PAC Boussole is licensed under [Apache-2.0](./LICENSE).

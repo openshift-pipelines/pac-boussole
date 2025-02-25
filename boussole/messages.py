@@ -68,12 +68,12 @@ SUCCESS_MERGED = """
 Thank you again for your valuable contribution! 🎉
 
 * Merge method: `{merge_method}`
-* Merged by: **@{comment_sender}* 
-* Total approvals: **{valid_votes}/{lgtm_threshold}* 
+* Merged by: **@{comment_sender}**
+* Total approvals: **{valid_votes}/{lgtm_threshold}
 
 **Approvals Summary:**
-|----------|------------|--------|
 | Reviewer | Permission | Status |
+|----------|------------|--------|
 {users_table}
 
 
@@ -86,7 +86,7 @@ Thank you again for your valuable contribution! 🎉
 PERMISSION_CHECK_ERROR = """
 ### ⚠️ Permission Check Failed
 
-Unable to verify permissions for user **@{user}* 
+Unable to verify permissions for user **@{user}**
 * API Response Status: `{status_code}`
 * This might be due to:
   * User not being a repository collaborator
@@ -103,7 +103,7 @@ Please check user permissions and try again.
 PERMISSION_DATA_MISSING = """
 ### ❌ Permission Data Missing
 
-Failed to retrieve permission level for user **@{user}* 
+Failed to retrieve permission level for user **@{user}**
 * Received empty permission data from GitHub API
 * This might indicate an API response format change
 * Please contact repository administrators for assistance
@@ -159,8 +159,8 @@ Please request assistance from a repository maintainer.
 NOT_ENOUGH_LGTM = """
 ### ❌ Insufficient Approvals
 
-* Current valid LGTM votes: **{valid_votes}* 
-* Required votes: **{threshold}* 
+* Current valid LGTM votes: **{valid_votes}** 
+* Required votes: **{threshold}**
 
 Please obtain additional approvals before merging.
 

@@ -74,7 +74,7 @@ Thank you again for your valuable contribution! 🎉
 **Approvals Summary:**
 |----------|------------|--------|
 | Reviewer | Permission | Status |
-*{users_table}*
+{users_table}
 
 
 

@@ -129,10 +129,11 @@ We welcome contributions! Feel free to open issues or submit pull requests.
 ### Why the name "Boussole"?
 
 **Boussole** is French for *"compass,"* reflecting its role in guiding PR workflows. The name also pays homage to [La
-Boussole](https://en.wikipedia.org/wiki/French_ship_Boussole_(1782), a ship from the ill-fated La Pérouse expedition that disappeared 
+Boussole](<https://en.wikipedia.org/wiki/French_ship_Boussole_(1782)>, a ship from the ill-fated La Pérouse expedition that disappeared
 in the Pacific—an analogy that may feel more or less fitting, depending on your experience with this project. 😉  
 
 **Pronunciation:** *Boussole* is pronounced **"boo-SOHL"** (/buˈsɔl/).  
+
 - Sounds like **"boo-soul"** in English.  
 - The **"bou"** rhymes with *boo* (as in *boost* or *book*).  
 - The **"ssole"** sounds like *soul*, but with a softer "L" at the end.

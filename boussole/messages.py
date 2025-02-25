@@ -15,26 +15,35 @@ HELP_TEXT = f"""
 | `/cherry-pick target-branch`| Cherry-picks the PR changes to the target branch                                |
 | `/rebase`                   | Rebases the PR branch on the base branch                                        |
 | `/help`                     | Shows this help message                                                         |
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 APPROVED_TEMPLATE = """
+Thank you for your valuable contribution! 🎉
+
 ### ✅ Pull Request Approved
 
-**Approval Status:**
+*Approval Status:* 
 * Required Approvals: {threshold}
 * Current Approvals: {valid_votes}
 
-### 👥 Approved By:
-| Reviewer | Permission | Status |
-|----------|------------|--------|
+### 👥 Reviewers Who Approved:
+| Reviewer | Permission Level | Approval Status |
+|----------|------------------|----------------|
 {users_table}
 
 ### 📝 Next Steps
-* All required checks must pass
-* Branch protection rules apply
-* Get a maintainer to use the `/merge` command to merge the PR
+* Ensure all required checks pass
+* Comply with branch protection rules
+* Request a maintainer to merge using the `/merge` command (or merge it
+directly if you have repository permission).
 
-Thank you for your contributions! 🎉
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 LGTM_BREAKDOWN_TEMPLATE = """
@@ -43,31 +52,41 @@ LGTM_BREAKDOWN_TEMPLATE = """
 * **Current valid votes:** {valid_votes}/{threshold}
 * **Voting required for approval:** {threshold}
 
-**Votes Summary:**
+*Votes Summary:* 
 | Reviewer | Permission | Valid Vote |
 |----------|------------|------------|
 {users_table}
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
 
 """
 
 SUCCESS_MERGED = """
 ### ✅ PR Successfully Merged
 
-* Merge method: `{merge_method}`
-* Merged by: **@{comment_sender}**
-* Total approvals: **{valid_votes}/{lgtm_threshold}**
+Thank you again for your valuable contribution! 🎉
 
-**Approvals Summary:**
+* Merge method: `{merge_method}`
+* Merged by: **@{comment_sender}* 
+* Total approvals: **{valid_votes}/{lgtm_threshold}* 
+
+*Approvals Summary:* 
 | Reviewer | Permission | Status |
-|----------|------------|--------|
-{users_table}
+
+*{users_table}* 
+
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 # Error and status message templates
 PERMISSION_CHECK_ERROR = """
 ### ⚠️ Permission Check Failed
 
-Unable to verify permissions for user **@{user}**
+Unable to verify permissions for user **@{user}* 
 * API Response Status: `{status_code}`
 * This might be due to:
   * User not being a repository collaborator
@@ -75,15 +94,23 @@ Unable to verify permissions for user **@{user}**
   * Rate limiting
 
 Please check user permissions and try again.
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 PERMISSION_DATA_MISSING = """
 ### ❌ Permission Data Missing
 
-Failed to retrieve permission level for user **@{user}**
+Failed to retrieve permission level for user **@{user}* 
 * Received empty permission data from GitHub API
 * This might indicate an API response format change
 * Please contact repository administrators for assistance
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 COMMENTS_FETCH_ERROR = """
@@ -93,10 +120,14 @@ Unable to process LGTM votes due to API error:
 * Status Code: `{status_code}`
 * Response: `{response_text}`
 
-**Troubleshooting Steps:**
+*Troubleshooting Steps:* 
 1. Check your authentication token
 2. Verify PR number: `{pr_num}`
 3. Ensure the PR hasn't been closed or deleted
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 SELF_APPROVAL_ERROR = """
@@ -107,6 +138,10 @@ SELF_APPROVAL_ERROR = """
 * Please [delete the comment]({comment_url}) before continuing.
 
 Please wait for reviews from other team members.
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 INSUFFICIENT_PERMISSIONS = """
@@ -117,15 +152,21 @@ INSUFFICIENT_PERMISSIONS = """
 * Required permissions: `{required_permissions}`
 
 Please request assistance from a repository maintainer.
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
 """
 
 NOT_ENOUGH_LGTM = """
 ### ❌ Insufficient Approvals
 
-* Current valid LGTM votes: **{valid_votes}**
-* Required votes: **{threshold}**
+* Current valid LGTM votes: **{valid_votes}* 
+* Required votes: **{threshold}* 
 
 Please obtain additional approvals before merging.
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 MERGE_FAILED = """
@@ -135,12 +176,14 @@ Unable to merge PR #{pr_num}:
 * Status Code: `{status_code}`
 * Error: `{error_text}`
 
-**Possible causes:**
+*Possible causes:* 
 * Branch protection rules not satisfied
 * Merge conflicts present
 * Required checks failing
 
 Please resolve any issues and try again.
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
 """
 
 # Add new error message template for cherry-pick
@@ -151,13 +194,16 @@ Failed to cherry-pick changes from PR #{source_pr} to branch `{target_branch}`:
 * Status Code: `{status_code}`
 * Error: `{error_text}`
 
-**Possible causes:**
+*Possible causes:* 
 * Merge conflicts
 * Branch protection rules
 * Invalid branch name
 * Missing permissions
 
 Please resolve any issues and try again.
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 CHERRY_PICK_SUCCESS = """
@@ -165,11 +211,15 @@ CHERRY_PICK_SUCCESS = """
 
 Successfully cherry-picked changes from PR #{source_pr} to branch `{target_branch}`.
 
-**Details:**
+*Details:* 
 * Source PR: #{source_pr}
 * Target Branch: `{target_branch}`
 * Cherry-picked by: @{user}
 * New commit SHA: `{commit_sha}`
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 CHERRY_PICK_CONFLICT = """
@@ -196,9 +246,14 @@ git cherry-pick {commit_sha}
 ```shell
 git push YOURFORKREMOTE resolve-cherry-pick-{self.pr_num} --force-with-lease
 gh pr create --base {target_branch} --head YOURFORK:resolve-cherry-pick-{self.pr_num}
+
 ```
 
 Need assistance? Please contact the repository maintainers.
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
 """
 
 REVIEW_REQUESTED = """{greeting}
@@ -213,7 +268,12 @@ REVIEW_REQUESTED = """{greeting}
 ⏰ Take your time - there's no immediate rush, but a timely review would be
 appreciated.
 
-Thank you for your help! 🙌"""
+Thank you for your help! 🙌
+
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+
+"""
 
 
 CHECKS_NOT_PASSED = """⚠️ Cannot merge PR: Some required checks haven't completed successfully.
@@ -221,4 +281,7 @@ CHECKS_NOT_PASSED = """⚠️ Cannot merge PR: Some required checks haven't comp
 {status_table}
 
 🔍 Please ensure all checks pass before merging.
-💡 Tip: Review the failing checks above and address any issues."""
+💡 Tip: Review the failing checks above and address any issues.
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+"""

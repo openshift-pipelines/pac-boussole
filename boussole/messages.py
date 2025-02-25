@@ -71,10 +71,10 @@ Thank you again for your valuable contribution! 🎉
 * Merged by: **@{comment_sender}* 
 * Total approvals: **{valid_votes}/{lgtm_threshold}* 
 
-*Approvals Summary:* 
+**Approvals Summary:**
+|----------|------------|--------|
 | Reviewer | Permission | Status |
-
-*{users_table}* 
+*{users_table}*
 
 
 

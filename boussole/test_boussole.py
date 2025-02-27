@@ -256,8 +256,6 @@ def test_merge_pr_success(pr_handler, mock_api):
         "pulls/123/merge",
         {
             "merge_method": "squash",
-            "commit_title": "Merged PR #123",
-            "commit_message": "PR #123 merged by test_user with 2 LGTM votes.",
         },
     )
 
@@ -369,7 +367,5 @@ def test_merge_pr_with_custom_method(pr_handler, mock_api):
         "pulls/123/merge",
         {
             "merge_method": "merge",  # Should use the custom method
-            "commit_title": "Merged PR #123",
-            "commit_message": "PR #123 merged by test_user with 2 LGTM votes.",
         },
     )

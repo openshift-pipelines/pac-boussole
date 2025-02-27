@@ -437,8 +437,8 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
             data = {
                 "merge_method": merge_method,
-                "commit_title": f"Merged PR #{self.pr_num}",
-                "commit_message": f"PR #{self.pr_num} merged by {self.pr_sender} with {valid_votes} LGTM votes.",
+                # "commit_title": f"Merged PR #{self.pr_num}",
+                # "commit_message": f"PR #{self.pr_num} merged by {self.pr_sender} with {valid_votes} LGTM votes.",
             }
             response = self.api.put(endpoint, data)
             if response and response.status_code == 200:

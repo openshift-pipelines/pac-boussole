@@ -363,6 +363,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
                 )
             endpoint = f"pulls/{self.pr_num}/reviews"
             body = APPROVED_TEMPLATE.format(
+                pr_sender=self.pr_sender,
                 threshold=self.lgtm_threshold,
                 valid_votes=valid_votes,
                 users_table=users_table,
@@ -476,6 +477,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
                     )
 
                 success_message = SUCCESS_MERGED.format(
+                    pr_sender=self.pr_sender,
                     merge_method=merge_method,
                     comment_sender=self.comment_sender,
                     valid_votes=valid_votes,

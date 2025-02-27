@@ -69,7 +69,7 @@ Thank you again for your valuable contribution! 🎉
 
 * Merge method: `{merge_method}`
 * Merged by: **@{comment_sender}**
-* Total approvals: **{valid_votes}/{lgtm_threshold}
+* Total approvals: **{valid_votes}/{lgtm_threshold}**
 
 **Approvals Summary:**
 | Reviewer | Permission | Status |

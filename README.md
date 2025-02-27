@@ -32,7 +32,7 @@ automated actions.
 | `/unlabel bug feature`       | Removes labels from the PR                                      |
 | `/cherry-pick target-branch` | Cherry-picks the PR changes to the target branch on merge      |
 | `/lgtm`                      | Approves the PR if at least one org member has commented `/lgtm` |
-| `/merge`                     | Merges the PR if it has enough `/lgtm` approvals               |
+| `/merge [method]`            | Merges the PR if it has enough `/lgtm` approvals. Optional method: `merge`, `squash`, or `rebase` |
 | `/rebase`                    | Rebases the PR branch on the base branch                        |
 | `/help`                      | Displays available commands                                     |
 
@@ -54,7 +54,7 @@ metadata:
   name: boussole
   annotations:
     pipelinesascode.tekton.dev/pipeline: "https://raw.githubusercontent.com/openshift-pipelines/pac-boussole/main/pipeline-boussole.yaml"
-    pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|merge|lgtm|(cherry-pick|assign|unassign|label|unlabel)[ ].*)$"
+    pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|lgtm|(cherry-pick|assign|merge|unassign|label|unlabel)[ ].*)"
     pipelinesascode.tekton.dev/max-keep-runs: "2"
 spec:
   params:

@@ -5,7 +5,7 @@ metadata:
   name: boussole
   annotations:
     pipelinesascode.tekton.dev/pipeline: ".tekton/pipelines/in-repo.yaml"
-    pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|merge|lgtm|(cherry-pick|assign|unassign|label|unlabel) )"
+    pipelinesascode.tekton.dev/on-comment: "^/(help|rebase|lgtm|(cherry-pick|assign|merge|unassign|label|unlabel)[ ].*)"
     pipelinesascode.tekton.dev/max-keep-runs: "2"
 spec:
   params:
@@ -29,6 +29,10 @@ spec:
       value: "{{ git_auth_secret }}"
     - name: comment_sender
       value: "{{ sender }}"
+    # The merge method to use. Can be one of: merge, squash, rebase
+    - name: merge_method
+      value: "squash"
+
   pipelineRef:
     name: in-repo
   workspaces:

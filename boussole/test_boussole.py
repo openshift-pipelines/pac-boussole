@@ -317,3 +317,59 @@ def test_check_status(pr_handler, mock_api):
     with pytest.raises(SystemExit) as exc_info:
         pr_handler.check_status("123", "open")
     assert exc_info.value.code == 1
+
+
+def test_merge_pr_with_custom_method(pr_handler, mock_api):
+    all_comments = MyFakeResponse(
+        200,
+        [
+            {"body": "/lgtm", "user": {"login": "reviewer1"}},
+            {"body": "/lgtm", "user": {"login": "reviewer2"}},
+        ],
+    )
+
+    all_checks = MyFakeResponse(
+        200,
+        {
+            "check_runs": [
+                {
+                    "name": "check-1",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "html_url": "http://test.url",
+                },
+            ],
+        },
+    )
+
+    mock_responses = [
+        MyFakeResponse(200, {"permission": "admin"}),
+        MyFakeResponse(200, {"head": {"sha": "abc123"}}),
+        all_checks,
+        MyFakeResponse(200, {}),
+        all_comments,
+        MyFakeResponse(200, {"permission": "write"}),  # reviewer1
+        MyFakeResponse(200, {"permission": "write"}),  # reviewer2
+        all_comments,
+        MyFakeResponse(200, {"permission": "write"}),  # reviewer1
+        MyFakeResponse(200, {"permission": "write"}),  # reviewer2
+    ]
+
+    mock_api.get.side_effect = mock_responses
+
+    # Mock successful merge
+    mock_api.put.return_value.status_code = 200
+    mock_api.post.return_value.status_code = 200
+
+    # Test with 'merge' as custom method
+    assert pr_handler.merge_pr("merge") is True
+
+    # Verify merge call with custom method
+    mock_api.put.assert_called_with(
+        "pulls/123/merge",
+        {
+            "merge_method": "merge",  # Should use the custom method
+            "commit_title": "Merged PR #123",
+            "commit_message": "PR #123 merged by test_user with 2 LGTM votes.",
+        },
+    )

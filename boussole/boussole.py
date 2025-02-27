@@ -181,6 +181,8 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         users_table = ""
         for user, permission in lgtm_users.items():
             is_valid = permission in self.lgtm_permissions
+            if "[bot]" in user:
+                continue
             valid_mark = "✅" if is_valid else "❌"
             users_table += f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"
 
@@ -357,12 +359,15 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             users_table = ""
             for user, permission in lgtm_users.items():
                 is_valid = permission in self.lgtm_permissions
+                if "bot" in user:
+                    continue
                 valid_mark = "✅" if is_valid else "❌"
                 users_table += (
                     f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"
                 )
             endpoint = f"pulls/{self.pr_num}/reviews"
             body = APPROVED_TEMPLATE.format(
+                pr_sender=self.pr_sender,
                 threshold=self.lgtm_threshold,
                 valid_votes=valid_votes,
                 users_table=users_table,
@@ -437,8 +442,8 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
 
             data = {
                 "merge_method": merge_method,
-                "commit_title": f"Merged PR #{self.pr_num}",
-                "commit_message": f"PR #{self.pr_num} merged by {self.pr_sender} with {valid_votes} LGTM votes.",
+                # "commit_title": f"Merged PR #{self.pr_num}",
+                # "commit_message": f"PR #{self.pr_num} merged by {self.pr_sender} with {valid_votes} LGTM votes.",
             }
             response = self.api.put(endpoint, data)
             if response and response.status_code == 200:
@@ -476,6 +481,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
                     )
 
                 success_message = SUCCESS_MERGED.format(
+                    pr_sender=self.pr_sender,
                     merge_method=merge_method,
                     comment_sender=self.comment_sender,
                     valid_votes=valid_votes,

@@ -22,7 +22,7 @@ HELP_TEXT = f"""
 """
 
 APPROVED_TEMPLATE = """
-Thank you for your valuable contribution! 🎉
+Congrats @{pr_sender} your PR Has been approved 🎉
 
 ### ✅ Pull Request Approved
 
@@ -65,8 +65,6 @@ LGTM_BREAKDOWN_TEMPLATE = """
 SUCCESS_MERGED = """
 ### ✅ PR Successfully Merged
 
-Thank you again for your valuable contribution! 🎉
-
 * Merge method: `{merge_method}`
 * Merged by: **@{comment_sender}**
 * Total approvals: **{valid_votes}/{lgtm_threshold}**
@@ -77,6 +75,7 @@ Thank you again for your valuable contribution! 🎉
 {users_table}
 
 
+Thank you @{pr_sender} for your valuable contribution! 🎉
 
 *Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
 

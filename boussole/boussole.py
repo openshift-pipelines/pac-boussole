@@ -181,6 +181,8 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         users_table = ""
         for user, permission in lgtm_users.items():
             is_valid = permission in self.lgtm_permissions
+            if "[bot]" in user:
+                continue
             valid_mark = "✅" if is_valid else "❌"
             users_table += f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"
 
@@ -357,6 +359,8 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             users_table = ""
             for user, permission in lgtm_users.items():
                 is_valid = permission in self.lgtm_permissions
+                if "bot" in user:
+                    continue
                 valid_mark = "✅" if is_valid else "❌"
                 users_table += (
                     f"| @{user} | `{permission or 'none'}` | {valid_mark} |\n"

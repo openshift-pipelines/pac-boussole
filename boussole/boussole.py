@@ -380,9 +380,13 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             self._post_lgtm_breakdown(valid_votes, lgtm_users)
         sys.exit(0)
 
-    def merge_pr(self) -> bool:
+    def merge_pr(self, custom_merge_method: Optional[str] = None) -> bool:
         """
         Merges the PR if it has enough LGTM approvals and all checks are green.
+
+        Args:
+            custom_merge_method: If provided, overrides the default merge method.
+                                Must be one of: 'merge', 'squash', or 'rebase'.
         """
         # Check if the user has sufficient permissions to merge
         permission, is_valid = self._check_membership(self.comment_sender)
@@ -421,8 +425,18 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         valid_votes, lgtm_users = self._fetch_and_validate_lgtm_votes()
         if valid_votes >= self.lgtm_threshold:
             endpoint = f"pulls/{self.pr_num}/merge"
+
+            # Use custom merge method if provided and valid, otherwise use default
+            merge_method = self.merge_method
+            if custom_merge_method and custom_merge_method.lower() in [
+                "merge",
+                "squash",
+                "rebase",
+            ]:
+                merge_method = custom_merge_method.lower()
+
             data = {
-                "merge_method": self.merge_method,
+                "merge_method": merge_method,
                 "commit_title": f"Merged PR #{self.pr_num}",
                 "commit_message": f"PR #{self.pr_num} merged by {self.pr_sender} with {valid_votes} LGTM votes.",
             }
@@ -460,7 +474,7 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
                     )
 
                 success_message = SUCCESS_MERGED.format(
-                    merge_method=self.merge_method,
+                    merge_method=merge_method,
                     comment_sender=self.comment_sender,
                     valid_votes=valid_votes,
                     lgtm_threshold=self.lgtm_threshold,
@@ -761,7 +775,13 @@ def main():
     elif command == "lgtm":
         pr_handler.lgtm()
     elif command == "merge":
-        pr_handler.merge_pr()
+        # Pass custom merge method if provided
+        merge_method = (
+            values[0]
+            if values and values[0].lower() in ["merge", "squash", "rebase"]
+            else None
+        )
+        pr_handler.merge_pr(merge_method)
     elif command == "cherry-pick":
         pr_handler.cherry_pick(values)
 

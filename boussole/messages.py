@@ -11,7 +11,7 @@ HELP_TEXT = f"""
 | `/label bug feature`        | Adds labels to the PR                                                           |
 | `/unlabel bug feature`      | Removes labels from the PR                                                      |
 | `/lgtm`                     | Approves the PR if at least {LGTM_THRESHOLD} org members have commented `/lgtm` |
-| `/merge`                    | Merges the PR if it has enough `/lgtm` approvals                                |
+| `/merge [method]`           | Merges the PR if it has enough `/lgtm` approvals. Optional method: merge, squash, or rebase |
 | `/cherry-pick target-branch`| Cherry-picks the PR changes to the target branch                                |
 | `/rebase`                   | Rebases the PR branch on the base branch                                        |
 | `/help`                     | Shows this help message                                                         |

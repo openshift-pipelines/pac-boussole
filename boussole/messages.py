@@ -143,6 +143,17 @@ Please wait for reviews from other team members.
 
 """
 
+CANNOT_MERGE_OWN_PR = """
+### 🤦‍♂️ You can't assign the PR to @{pr_sender}
+
+The user @{pr_sender} is the author of this Pull Request.
+
+Nice try though! Authors reviewing their own code is like grading your own exam
+- tempting but defeats the purpose! 😉
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
+"""
+
 INSUFFICIENT_PERMISSIONS = """
 ### 🔒 Insufficient Permissions
 

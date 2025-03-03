@@ -11,7 +11,7 @@ HELP_TEXT = f"""
 | `/label bug feature`        | Adds labels to the PR                                                           |
 | `/unlabel bug feature`      | Removes labels from the PR                                                      |
 | `/lgtm`                     | Approves the PR if at least {LGTM_THRESHOLD} org members have commented `/lgtm` |
-| `/merge [method]`           | Merges the PR if it has enough `/lgtm` approvals. Optional method: merge, squash, or rebase |
+| `/merge [method]`           | Merges the PR if approvals are sufficient. Admin/write users can merge directly with threshold=1 |
 | `/cherry-pick target-branch`| Cherry-picks the PR changes to the target branch                                |
 | `/rebase`                   | Rebases the PR branch on the base branch                                        |
 | `/help`                     | Shows this help message                                                         |
@@ -141,6 +141,17 @@ Please wait for reviews from other team members.
 
 *Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
 
+"""
+
+CANNOT_MERGE_OWN_PR = """
+### 🤦‍♂️ You can't assign the PR to @{pr_sender}
+
+The user @{pr_sender} is the author of this Pull Request.
+
+Nice try though! Authors reviewing their own code is like grading your own exam
+- tempting but defeats the purpose! 😉
+
+*Automated by the [PAC Boussole](https://github.com/openshift-pipelines/pac-boussole) 🧭* 
 """
 
 INSUFFICIENT_PERMISSIONS = """

@@ -18,6 +18,7 @@ from .client import GitHubAPI, RequestResponse
 
 from .messages import (  # isort:skip
     APPROVED_TEMPLATE,
+    CANNOT_MERGE_OWN_PR,
     CHECKS_NOT_PASSED,
     COMMENTS_FETCH_ERROR,
     HELP_TEXT,
@@ -293,6 +294,14 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         method = self.api.post if command == "assign" else self.api.delete
         response = method(endpoint, data)
 
+        for user in users:
+            if user == self.pr_sender:
+                self._post_comment(
+                    message := CANNOT_MERGE_OWN_PR.format(pr_sender=self.pr_sender)
+                )
+                print(message, file=sys.stderr)
+                sys.exit(1)
+
         if response and response.status_code in [200, 201, 204]:
             if command == "assign":
                 # Create a friendly message for assignments
@@ -426,8 +435,23 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
             print(msg, file=sys.stderr)
             sys.exit(1)
 
-        # Fetch LGTM votes and check if the threshold is met
+        # Fetch LGTM votes
         valid_votes, lgtm_users = self._fetch_and_validate_lgtm_votes()
+        # Handle case where admin/write user can merge directly
+        if self.pr_sender not in self.comment_sender and permission in [
+            "admin",
+            "write",
+        ]:
+            # If threshold is 1, the user with admin/write can merge directly
+            # For threshold > 1, count their merge command as a vote if not already counted
+            merger_already_voted = self.comment_sender in lgtm_users
+            if self.lgtm_threshold == 1 or (
+                valid_votes >= self.lgtm_threshold - 1 and not merger_already_voted
+            ):
+                # Add the merger's vote if not already counted
+                if not merger_already_voted:
+                    lgtm_users[self.comment_sender] = permission
+                    valid_votes += 1
         if valid_votes >= self.lgtm_threshold:
             endpoint = f"pulls/{self.pr_num}/merge"
 
@@ -652,6 +676,7 @@ def parse_args() -> argparse.Namespace:
         help="The type of review event to trigger when an LGTM is given. "
         "Can be overridden via the PAC_LGTM_REVIEW_EVENT environment variable.",
     )
+
     # Merge method argument
     parser.add_argument(
         "--merge-method",
@@ -674,6 +699,7 @@ def parse_args() -> argparse.Namespace:
         help="The number of the pull request to operate on. "
         "Can be overridden via the GH_PR_NUM environment variable.",
     )
+
     # PR sender argument
     parser.add_argument(
         "--pr-sender",
@@ -681,6 +707,7 @@ def parse_args() -> argparse.Namespace:
         help="The GitHub username of the user who opened the pull request. "
         "Can be overridden via the GH_PR_SENDER environment variable.",
     )
+
     # Comment sender argument
     parser.add_argument(
         "--comment-sender",
@@ -688,6 +715,7 @@ def parse_args() -> argparse.Namespace:
         help="The GitHub username of the user who triggered the command. "
         "Can be overridden via the GH_COMMENT_SENDER environment variable.",
     )
+
     # Repository owner argument
     parser.add_argument(
         "--repo-owner",
@@ -695,6 +723,7 @@ def parse_args() -> argparse.Namespace:
         help="The owner (organization or user) of the GitHub repository. "
         "Can be overridden via the GH_REPO_OWNER environment variable.",
     )
+
     # Repository name argument
     parser.add_argument(
         "--repo-name",
@@ -702,6 +731,7 @@ def parse_args() -> argparse.Namespace:
         help="The name of the GitHub repository. "
         "Can be overridden via the GH_REPO_NAME environment variable.",
     )
+
     # Trigger comment argument
     parser.add_argument(
         "--trigger-comment",
@@ -709,6 +739,7 @@ def parse_args() -> argparse.Namespace:
         help="The comment that triggered this command. "
         "Can be overridden via the PAC_TRIGGER_COMMENT environment variable.",
     )
+
     parsed = parser.parse_args()
     if not parsed.github_token:
         parser.error(
@@ -752,7 +783,7 @@ def main():
 
     trigger_comment = args.trigger_comment.lstrip("\\n")
     match = re.match(
-        r"^/(rebase|cherry-pick|merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
+        r"^/(rebase|cherry-pick|merge|assign|unassign|label|unlabel|lgtm|help)(.*)",
         trigger_comment,
     )
     if not match:

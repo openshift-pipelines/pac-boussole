@@ -369,3 +369,9 @@ def test_merge_pr_with_custom_method(pr_handler, mock_api):
             "merge_method": "merge",  # Should use the custom method
         },
     )
+
+
+def test_assign_unassign_pr_author(pr_handler):
+    with pytest.raises(SystemExit) as exc_info:
+        pr_handler.assign_unassign("assign", ["test_user"])
+        assert exc_info == 1

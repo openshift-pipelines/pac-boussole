@@ -18,6 +18,7 @@ from .client import GitHubAPI, RequestResponse
 
 from .messages import (  # isort:skip
     APPROVED_TEMPLATE,
+    CANNOT_MERGE_OWN_PR,
     CHECKS_NOT_PASSED,
     COMMENTS_FETCH_ERROR,
     HELP_TEXT,
@@ -292,6 +293,14 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         data = {"reviewers": users}
         method = self.api.post if command == "assign" else self.api.delete
         response = method(endpoint, data)
+
+        for user in users:
+            if user == self.pr_sender:
+                self._post_comment(
+                    message := CANNOT_MERGE_OWN_PR.format(pr_sender=self.pr_sender)
+                )
+                print(message, file=sys.stderr)
+                sys.exit(1)
 
         if response and response.status_code in [200, 201, 204]:
             if command == "assign":

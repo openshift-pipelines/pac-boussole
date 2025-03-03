@@ -783,7 +783,7 @@ def main():
 
     trigger_comment = args.trigger_comment.lstrip("\\n")
     match = re.match(
-        r"^/(rebase|cherry-pick|merge|assign|unassign|label|unlabel|lgtm|help)\s*(.*)",
+        r"^/(rebase|cherry-pick|merge|assign|unassign|label|unlabel|lgtm|help)(.*)",
         trigger_comment,
     )
     if not match:

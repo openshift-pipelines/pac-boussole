@@ -438,7 +438,10 @@ class PRHandler:  # pylint: disable=too-many-instance-attributes
         # Fetch LGTM votes
         valid_votes, lgtm_users = self._fetch_and_validate_lgtm_votes()
         # Handle case where admin/write user can merge directly
-        if permission in ["admin", "write"]:
+        if self.pr_sender not in self.comment_sender and permission in [
+            "admin",
+            "write",
+        ]:
             # If threshold is 1, the user with admin/write can merge directly
             # For threshold > 1, count their merge command as a vote if not already counted
             merger_already_voted = self.comment_sender in lgtm_users
